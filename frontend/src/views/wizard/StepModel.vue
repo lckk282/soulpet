@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useWizard } from '../../stores/wizard'
 import { api } from '../../api'
+import AppIcon from '../../components/AppIcon.vue'
 
 const w = useWizard()
 const providers = ref<any[]>([])
@@ -18,11 +19,13 @@ const applyPreset = (id: string) => {
   w.draft.model.provider = id
   w.draft.model.base_url = p.base_url
   if (!w.draft.model.model) w.draft.model.model = p.model
+  w.errors = []
 }
 const useMock = () => {
   w.draft.model.provider = 'mock'
   w.draft.model.model = 'mock'
   w.draft.model.base_url = 'http://127.0.0.1:1/v1'
+  w.errors = []
 }
 
 const test = async () => {
@@ -35,8 +38,11 @@ const test = async () => {
       api_key: w.draft.model.api_key,
       provider: w.draft.model.provider,
     })
-  } catch (e: any) { result.value = { ok: false, hint: e.message } }
-  finally { testing.value = false }
+    if (result.value && !result.value.ok) w.bumpGuideError()
+  } catch (e: any) {
+    result.value = { ok: false, hint: e.message }
+    w.bumpGuideError()
+  } finally { testing.value = false }
 }
 
 const estimated = computed(() => {
@@ -49,16 +55,21 @@ const estimated = computed(() => {
 </script>
 
 <template>
-  <div class="card">
-    <h2>第四步 · 大模型 API 配置</h2>
-    <p class="small muted">模型名与价格请以厂商官方信息为准；这里只保存连接信息，不代收任何费用。</p>
+  <div>
+    <div class="section-head">
+      <span class="ic"><AppIcon name="bolt" :size="19" /></span>
+      <h2>大模型 API 与额度</h2>
+    </div>
+    <p class="section-sub">模型名与价格请以厂商官方信息为准；这里只保存连接信息，不代收任何费用。</p>
 
     <div class="field">
-      <span style="display:block;font-size:12px;color:var(--muted);margin-bottom:6px">选择服务商</span>
-      <div class="row wrap" style="gap:6px">
+      <span style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:8px;font-weight:600">选择服务商</span>
+      <div class="row wrap" style="gap:7px">
         <span v-for="p in providers" :key="p.id" class="chip" :class="{ gray: w.draft.model.provider !== p.id }"
-              style="cursor:pointer" @click="applyPreset(p.id)">{{ p.label }}</span>
-        <span class="chip" :class="{ gray: w.draft.model.provider !== 'mock' }" style="cursor:pointer" @click="useMock">先不填，离线体验</span>
+              style="cursor:pointer;padding:7px 13px;font-size:13px" @click="applyPreset(p.id)">{{ p.label }}</span>
+        <span class="chip" :class="{ gray: w.draft.model.provider !== 'mock' }" style="cursor:pointer;padding:7px 13px;font-size:13px" @click="useMock">
+          <AppIcon name="sparkle" :size="13" /> 先不填，离线体验
+        </span>
       </div>
     </div>
 
@@ -68,20 +79,29 @@ const estimated = computed(() => {
     </div>
     <label class="field"><span>API 地址</span>
       <input v-model="w.draft.model.base_url" type="text" placeholder="https://.../v1" /></label>
-    <label class="field"><span>API Key（只写入本机钥匙串，草稿与配置里不留明文）</span>
-      <input v-model="w.draft.model.api_key" type="password" placeholder="sk-..." autocomplete="off" /></label>
+    <label class="field">
+      <span><AppIcon name="lock" :size="12" style="vertical-align:-1px" /> API Key（只写入本机钥匙串，草稿与配置里不留明文）</span>
+      <input v-model="w.draft.model.api_key" type="password" placeholder="sk-..." autocomplete="off" />
+    </label>
 
-    <div class="row" style="align-items:flex-end">
-      <button :disabled="testing || !w.draft.model.api_key" @click="test">{{ testing ? '测试中…' : '测试连接' }}</button>
-      <span v-if="!w.draft.model.api_key" class="small muted">不填 Key 也能继续，离线体验模式</span>
+    <div class="row" style="align-items:center">
+      <button :disabled="testing || !w.draft.model.api_key" @click="test">
+        {{ testing ? '测试中…' : '测试连接' }}
+      </button>
+      <span v-if="!w.draft.model.api_key" class="small muted">不填 Key 也能继续，先用离线体验模式</span>
     </div>
 
-    <div v-if="result" class="banner" :class="result.ok ? 'ok' : 'danger'" style="margin-top:10px">
-      <span v-if="result.ok">✓ 连通 · 延迟 {{ result.latency_ms }}ms · 模型 {{ result.model }}</span>
-      <span v-else>✗ {{ result.hint || '连接失败' }}<span v-if="result.detail" class="small"> · {{ result.detail }}</span></span>
+    <div v-if="result" class="banner" :class="result.ok ? 'ok' : 'danger'" style="margin-top:10px;display:flex;gap:8px;align-items:flex-start">
+      <AppIcon :name="result.ok ? 'check' : 'alert'" :size="16" style="flex-shrink:0;margin-top:2px" />
+      <span v-if="result.ok">连通 · 延迟 {{ result.latency_ms }}ms · 模型 {{ result.model }}</span>
+      <span v-else>{{ result.hint || '连接失败' }}<span v-if="result.detail" class="small"> · {{ result.detail }}</span></span>
     </div>
 
-    <div class="row" style="margin-top:10px">
+    <hr class="divider" />
+    <h3 style="display:flex;align-items:center;gap:7px;margin-bottom:10px">
+      <AppIcon name="wallet" :size="17" style="color:var(--warn)" /> 资源额度与上限
+    </h3>
+    <div class="row">
       <label class="field grow"><span>输入单价（元 / 百万 tokens，可留空）</span>
         <input v-model.number="w.draft.model.pricing.input_per_mtokens" type="number" step="0.1" /></label>
       <label class="field grow"><span>输出单价（元 / 百万 tokens，可留空）</span>
@@ -96,9 +116,9 @@ const estimated = computed(() => {
       <label class="field grow"><span>月消费上限（元）</span>
         <input v-model.number="w.draft.model.budget.monthly_cap_cny" type="number" /></label>
     </div>
-    <label style="display:flex;gap:8px">
+    <label class="check-row" style="display:flex;align-items:center;gap:9px;padding:8px 10px;cursor:pointer">
       <input type="checkbox" v-model="w.draft.model.budget.auto_idle_on_cap" />
-      <span>达到月上限时自动进入省钱待机</span>
+      <span style="font-size:13.5px">达到月上限时自动进入省钱待机</span>
     </label>
   </div>
 </template>

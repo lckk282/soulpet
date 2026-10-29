@@ -1,32 +1,61 @@
 <script setup lang="ts">
+import { useRoute, useRouter } from 'vue-router'
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import AppIcon from './components/AppIcon.vue'
 
 const router = useRouter()
-const initialized = computed(() => false)
+const route = useRoute()
 const go = (p: string) => router.push(p)
+
+const navs = [
+  { path: '/chat', label: '聊天', icon: 'chat' },
+  { path: '/memory', label: '记忆', icon: 'memory' },
+  { path: '/settings', label: '设置', icon: 'settings' },
+  { path: '/status', label: '运行状态', icon: 'status' },
+]
+const isActive = (p: string) => computed(() => route.path === p)
+const activeChat = isActive('/chat')
+const activeMemory = isActive('/memory')
+const activeSettings = isActive('/settings')
+const activeStatus = isActive('/status')
+const activeMap: Record<string, any> = {
+  '/chat': activeChat, '/memory': activeMemory, '/settings': activeSettings, '/status': activeStatus,
+}
 </script>
 
 <template>
-  <div style="min-height:100%;display:flex;flex-direction:column">
-    <header style="border-bottom:1px solid var(--line);background:#fff">
-      <div class="between" style="max-width:1100px;margin:0 auto;padding:10px 16px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:20px">🐾</span>
-          <strong>SoulPet</strong>
-          <span class="chip gray">本地优先</span>
-        </div>
-        <nav style="display:flex;gap:6px">
-          <button class="ghost" @click="go('/chat')">聊天</button>
-          <button class="ghost" @click="go('/memory')">记忆</button>
-          <button class="ghost" @click="go('/settings')">设置</button>
-          <button class="ghost" @click="go('/status')">运行状态</button>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="topbar__inner">
+        <button class="brand" @click="go('/')">
+          <span class="brand__mark"><AppIcon name="paw" :size="20" /></span>
+          <span>SoulPet</span>
+          <span class="chip gray" style="font-weight:600">本地优先</span>
+        </button>
+        <nav class="nav">
+          <button
+            v-for="n in navs" :key="n.path"
+            class="nav__item"
+            :class="{ active: activeMap[n.path].value }"
+            :title="n.label"
+            @click="go(n.path)"
+          >
+            <AppIcon :name="n.icon" :size="17" /><span>{{ n.label }}</span>
+          </button>
         </nav>
       </div>
     </header>
-    <main style="flex:1"><router-view /></main>
-    <footer class="small muted center" style="padding:14px">
-      配置、记忆、密钥全部保存在本机 · SoulPet 不会把你的数据上传到任何第三方
+
+    <main class="app-main">
+      <router-view v-slot="{ Component }">
+        <transition name="page-fade" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </router-view>
+    </main>
+
+    <footer class="app-footer">
+      <AppIcon name="lock" :size="12" /> 配置、记忆、密钥全部保存在本机<span class="fdot">·</span>SoulPet 不会把你的数据上传到任何第三方
     </footer>
   </div>
 </template>

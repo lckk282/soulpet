@@ -49,6 +49,8 @@ export const useWizard = defineStore('wizard', {
     warnings: [] as string[],
     committing: false,
     steps: [] as string[],
+    // 引导小宠物的「慌张」信号：任何一处校验失败都 +1，向导组件监听后切表情
+    guideErrorToken: 0,
   }),
 
   getters: {
@@ -100,6 +102,77 @@ export const useWizard = defineStore('wizard', {
       if (!this.visited.includes(step)) this.visited.push(step)
       this.saveLocal(); this.saveRemote()
     },
+
+    /** 触发一次「慌张」表情（校验失败 / 提交失败 / 连接失败共用） */
+    bumpGuideError() {
+      this.guideErrorToken += 1
+    },
+
+    /**
+     * 只校验「当前步骤」，返回错误文案列表。
+     * 前端即时校验用于引导反馈，后端 /wizard/validate 仍是最终防线。
+     */
+    validateStep(): string[] {
+      const d = this.draft
+      const errs: string[] = []
+      const hhmm = /^([01]\d|2[0-3]):[0-5]\d$/
+
+      if (this.step === 'welcome') {
+        if (!(d.ack.privacy && d.ack.cost && d.ack.risk)) {
+          errs.push('先读完并勾选上面的三项知情确认，才能继续呀~')
+        }
+      } else if (this.step === 'identity') {
+        if (!d.identity.name.trim()) errs.push('还没有名字呢，给我起一个吧~')
+      } else if (this.step === 'personality') {
+        const sch = d.personality.schedule
+        if (!hhmm.test(sch.active_start)) errs.push('活跃开始时间要填 HH:MM 格式（如 09:00）')
+        if (!(Number(sch.active_hours) >= 1 && Number(sch.active_hours) <= 24)) {
+          errs.push('活跃时长要在 1~24 小时之间哦')
+        }
+        if (Array.isArray(sch.proactive.quiet_hours)) {
+          for (const q of sch.proactive.quiet_hours) {
+            if (q && !hhmm.test(q)) { errs.push('免打扰时间段格式应为 HH:MM'); break }
+          }
+        }
+        const sliders = d.personality.sliders as Record<string, unknown>
+        for (const v of Object.values(sliders)) {
+          if (typeof v !== 'number' || Number.isNaN(v) || v < 0 || v > 100) {
+            errs.push('性格滑块取值要在 0~100 之间'); break
+          }
+        }
+      } else if (this.step === 'deploy') {
+        if (d.deploy.mode === 'cloud') {
+          const host = d.deploy.cloud?.host?.trim()
+          if (!host) errs.push('云服务器要填一下主机 IP 或域名哦')
+        }
+      } else if (this.step === 'model') {
+        if (!d.model.model.trim()) errs.push('请先选一个服务商，或点「离线体验」')
+        if (!/^https?:\/\//.test(d.model.base_url)) errs.push('API 地址要以 http(s):// 开头哦')
+      } else if (this.step === 'qq') {
+        if (!d.qq.risk_accepted) errs.push('请先确认所选方案的风险提示')
+        if (d.qq.scheme === 'napcat' && !/^wss?:\/\//.test(d.qq.ws_url)) {
+          errs.push('NapCat 地址要以 ws:// 或 wss:// 开头')
+        }
+        if (d.qq.scheme === 'official' && !d.qq.app_id.trim()) {
+          errs.push('官方机器人需要填写 AppID')
+        }
+      }
+      return errs
+    },
+
+    /** 尝试进入下一步：先校验，失败则触发慌张并返回 false */
+    tryNext(): boolean {
+      const errs = this.validateStep()
+      if (errs.length) {
+        this.errors = errs
+        this.bumpGuideError()
+        return false
+      }
+      this.errors = []
+      this.next()
+      return true
+    },
+
     next() {
       const i = this.index
       const nxt = this.flow[Math.min(i + 1, this.flow.length - 1)]
@@ -120,6 +193,7 @@ export const useWizard = defineStore('wizard', {
         return r
       } catch (e: any) {
         this.errors = [e.message || String(e)]
+        this.bumpGuideError()
         throw e
       } finally {
         this.committing = false

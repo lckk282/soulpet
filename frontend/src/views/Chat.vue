@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, nextTick } from 'vue'
 import { api } from '../api'
+import AppIcon from '../components/AppIcon.vue'
 
 type Msg = { role: string; content: string; emotion?: string }
 
@@ -54,37 +55,64 @@ const send = async () => {
 </script>
 
 <template>
-  <div style="max-width:820px;margin:0 auto;padding:18px 16px">
-    <div class="card" style="padding:0;display:flex;flex-direction:column;height:calc(100vh - 150px)">
-      <div class="between" style="padding:10px 16px;border-bottom:1px solid var(--line)">
-        <div><strong>{{ petName }}</strong> <span class="chip ok">在线</span></div>
-        <div class="row">
-          <button class="ghost" @click="$router.push('/memory')">记忆时间线</button>
-          <button class="ghost" @click="$router.push('/settings')">设置</button>
+  <div class="chat-wrap">
+    <div class="page-head">
+      <span class="page-head__eyebrow">你的私人伙伴</span>
+      <h1>和 {{ petName }} 聊聊天</h1>
+      <p>说的话会按你设定的性格回应，重要的事会慢慢记进它的小本本。</p>
+    </div>
+
+    <div class="card chat-card">
+      <div class="chat-head">
+        <div class="chat-head__who">
+          <span class="avatar"><AppIcon name="paw" :size="20" /></span>
+          <div>
+            <strong>{{ petName }}</strong>
+            <div class="small muted" style="line-height:1.2">陪你聊天中</div>
+          </div>
+          <span class="chip ok"><span class="dot" /> 在线</span>
+        </div>
+        <div class="row" style="gap:6px">
+          <button class="ghost small" @click="$router.push('/memory')"><AppIcon name="memory" :size="14" style="vertical-align:-2px" /> 记忆</button>
+          <button class="ghost small" @click="$router.push('/settings')"><AppIcon name="settings" :size="14" style="vertical-align:-2px" /> 设置</button>
         </div>
       </div>
 
-      <div ref="box" style="flex:1;overflow:auto;padding:16px">
-        <div v-for="(m, i) in msgs" :key="i" style="margin-bottom:12px">
-          <div v-if="m.role === 'user'" style="text-align:right">
-            <span style="display:inline-block;background:var(--brand);color:#fff;padding:8px 12px;border-radius:12px;max-width:76%;white-space:pre-wrap">{{ m.content }}</span>
+      <div ref="box" class="chat-body">
+        <div v-for="(m, i) in msgs" :key="i" class="msg" :class="m.role === 'user' ? 'msg--user' : 'msg--assistant'">
+          <span v-if="m.role === 'assistant'" class="avatar avatar--sm"><AppIcon name="paw" :size="15" /></span>
+          <div class="bubble">
+            {{ m.content }}<span v-if="busy && i === msgs.length - 1 && m.role === 'assistant'" class="typing-caret">▌</span>
           </div>
-          <div v-else class="row" style="align-items:flex-start">
-            <div style="font-size:22px">🐾</div>
-            <div style="background:#fff;border:1px solid var(--line);padding:8px 12px;border-radius:12px;max-width:76%;white-space:pre-wrap">
-              {{ m.content }}<span v-if="busy && i === msgs.length - 1" class="muted">▌</span>
-            </div>
-          </div>
+        </div>
+        <div v-if="!msgs.length" class="center muted" style="margin:auto">
+          <AppIcon name="chat" :size="40" style="opacity:0.3" />
+          <p class="small">打声招呼吧~</p>
         </div>
       </div>
 
-      <div class="row" style="padding:12px;border-top:1px solid var(--line)">
+      <div class="chat-send">
         <textarea
           v-model="input" rows="2" placeholder="说点什么…（Enter 发送，Shift+Enter 换行）"
           @keydown.enter.exact.prevent="send"
         />
-        <button class="primary" :disabled="busy || !input.trim()" @click="send">{{ busy ? '…' : '发送' }}</button>
+        <button class="primary send-btn" :disabled="busy || !input.trim()" @click="send">
+          <AppIcon v-if="!busy" name="send" :size="17" /> <span v-if="!busy">发送</span><span v-else>…</span>
+        </button>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.avatar--sm { width: 30px; height: 30px; border-radius: 10px; flex-shrink: 0; }
+.send-btn {
+  height: 46px; min-width: 92px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  white-space: nowrap;
+}
+.dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); margin-right: 3px; }
+.typing-caret { color: var(--brand); animation: caret 0.7s steps(1) infinite; }
+@keyframes caret { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .typing-caret { animation: none; } }
+</style>

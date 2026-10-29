@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { api } from '../api'
+import AppIcon from '../components/AppIcon.vue'
 
 const model = ref<any>({
   provider: '', model: '', base_url: '', api_key: '', has_api_key: false,
@@ -40,12 +41,14 @@ const saveModel = async () => {
 
 const testModel = async () => {
   okMsg.value = errMsg.value = ''
-  const r = await api.post('/model/test', {
-    base_url: model.value.base_url, model: model.value.model,
-    api_key: model.value.api_key, provider: model.value.provider,
-  })
-  if (r.ok) okMsg.value = `连通 · ${r.latency_ms}ms · ${r.model}`
-  else errMsg.value = r.hint || '连接失败'
+  try {
+    const r = await api.post('/model/test', {
+      base_url: model.value.base_url, model: model.value.model,
+      api_key: model.value.api_key, provider: model.value.provider,
+    })
+    if (r.ok) okMsg.value = `连通 · ${r.latency_ms}ms · ${r.model}`
+    else errMsg.value = r.hint || '连接失败'
+  } catch (e: any) { errMsg.value = e.message }
 }
 
 const removeKey = async () => {
@@ -76,30 +79,41 @@ const reset = async () => {
   await api.post('/wizard/reset')
   location.href = '/'
 }
+const backup = async () => {
+  try { const r = await api.post('/status/backup'); okMsg.value = '已备份：' + r.path }
+  catch (e: any) { errMsg.value = e.message }
+}
 </script>
 
 <template>
-  <div style="max-width:820px;margin:0 auto;padding:18px 16px" class="col">
-    <div v-if="okMsg" class="banner ok">{{ okMsg }}</div>
-    <div v-if="errMsg" class="banner danger">{{ errMsg }}</div>
+  <div class="page col">
+    <div class="page-head" style="margin-bottom:4px">
+      <span class="page-head__eyebrow">偏好设置</span>
+      <h1>设置</h1>
+      <p>模型、密钥、费用上限、形象素材与数据备份，都在这里管理。</p>
+    </div>
+
+    <div v-if="okMsg" class="banner ok"><AppIcon name="check" :size="15" style="vertical-align:-3px" /> {{ okMsg }}</div>
+    <div v-if="errMsg" class="banner danger"><AppIcon name="alert" :size="15" style="vertical-align:-3px" /> {{ errMsg }}</div>
 
     <div class="card">
-      <h2>大模型</h2>
+      <h2 style="display:flex;align-items:center;gap:8px"><AppIcon name="bolt" :size="18" style="color:var(--brand)" /> 大模型</h2>
       <div class="row">
         <label class="field grow"><span>服务商</span><input v-model="model.provider" type="text" /></label>
         <label class="field grow"><span>模型名</span><input v-model="model.model" type="text" /></label>
       </div>
       <label class="field"><span>API 地址</span><input v-model="model.base_url" type="text" /></label>
       <label class="field">
-        <span>API Key（当前{{ model.has_api_key ? '已保存' : '未设置' }}，密钥存放：{{ backend === 'keyring' ? '系统钥匙串' : '加密文件' }}）</span>
+        <span>API Key（当前{{ model.has_api_key ? '已保存' : '未设置' }} · 存放：{{ backend === 'keyring' ? '系统钥匙串' : '加密文件' }}）</span>
         <input v-model="model.api_key" type="password" placeholder="留空表示不修改" autocomplete="off" />
       </label>
-      <div class="row">
-        <button @click="testModel">测试连接</button>
+      <div class="row wrap" style="gap:8px">
+        <button @click="testModel"><AppIcon name="bolt" :size="14" style="vertical-align:-2px" /> 测试连接</button>
         <button class="primary" @click="saveModel">保存</button>
-        <button class="danger" @click="removeKey">删除密钥</button>
+        <button class="danger" @click="removeKey"><AppIcon name="trash" :size="14" style="vertical-align:-2px" /> 删除密钥</button>
       </div>
-      <div class="row" style="margin-top:10px">
+      <hr class="divider" />
+      <div class="row">
         <label class="field grow"><span>输入单价（元/百万 tokens）</span>
           <input v-model.number="model.pricing.input_per_mtokens" type="number" step="0.1" /></label>
         <label class="field grow"><span>输出单价</span>
@@ -115,7 +129,7 @@ const reset = async () => {
     </div>
 
     <div v-if="usage" class="card">
-      <h2>费用</h2>
+      <h2 style="display:flex;align-items:center;gap:8px"><AppIcon name="wallet" :size="18" style="color:var(--warn)" /> 费用</h2>
       <div class="row wrap" style="gap:8px">
         <span class="chip">今日 ¥{{ usage.today.cost.toFixed(4) }}</span>
         <span class="chip">本月 ¥{{ usage.month.cost.toFixed(4) }}</span>
@@ -126,7 +140,7 @@ const reset = async () => {
     </div>
 
     <div class="card">
-      <h2>形象素材</h2>
+      <h2 style="display:flex;align-items:center;gap:8px"><AppIcon name="image" :size="18" style="color:var(--brand)" /> 形象素材</h2>
       <p class="small muted">上传一个 zip 素材包（内含 manifest.json 与九个槽位图片）。</p>
       <input type="file" accept=".zip" @change="onFile" />
       <p v-if="uploading" class="small muted">上传中…</p>
@@ -136,9 +150,9 @@ const reset = async () => {
     </div>
 
     <div class="card">
-      <h2>备份与重置</h2>
-      <div class="row">
-        <button @click="api.post('/status/backup').then(r => okMsg = '已备份：' + r.path)">立即备份</button>
+      <h2 style="display:flex;align-items:center;gap:8px"><AppIcon name="shield" :size="18" style="color:var(--ok)" /> 备份与重置</h2>
+      <div class="row wrap" style="gap:8px">
+        <button @click="backup"><AppIcon name="refresh" :size="14" style="vertical-align:-2px" /> 立即备份</button>
         <button class="danger" @click="reset">恢复出厂（清空配置与记忆）</button>
       </div>
       <p class="small muted" style="margin-top:8px">备份包含 config/、数据库与记忆，保存在 data/backups/。</p>
