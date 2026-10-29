@@ -4,15 +4,7 @@ from __future__ import annotations
 import logging
 import mimetypes
 import sys
-
-# 部分 Windows 机器的注册表会把 .js 映射成 text/plain，导致浏览器拒绝执行
-# ES 模块脚本、前端整页白屏。这里强制覆盖，保证任何机器上都能正常打开。
-mimetypes.add_type("text/javascript", ".js")
-mimetypes.add_type("text/javascript", ".mjs")
-mimetypes.add_type("text/css", ".css")
-mimetypes.add_type("application/json", ".json")
-mimetypes.add_type("image/svg+xml", ".svg")
-from contextlib import asynccontextmanager  # noqa: E402
+from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 
 from fastapi import FastAPI
@@ -26,6 +18,14 @@ from .config_store import ensure_defaults, is_initialized  # noqa: E402
 from .core import scheduler as sched  # noqa: E402
 from .db import init_db  # noqa: E402
 from .services import asset_pack, module_manager  # noqa: E402
+
+# 部分 Windows 机器的注册表会把 .js 映射成 text/plain，导致浏览器拒绝执行
+# ES 模块脚本、前端整页白屏。这里强制覆盖，保证任何机器上都能正常打开。
+mimetypes.add_type("text/javascript", ".js")
+mimetypes.add_type("text/javascript", ".mjs")
+mimetypes.add_type("text/css", ".css")
+mimetypes.add_type("application/json", ".json")
+mimetypes.add_type("image/svg+xml", ".svg")
 
 VERSION = "0.1.0"
 
