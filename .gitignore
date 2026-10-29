@@ -25,6 +25,12 @@ config/*.tmp
 # 备份
 *.zip
 
+# 云服部署产物（证书、容器数据卷、申请记录）
+deploy/certs/
+deploy/data/
+deploy/config/
+deploy/certbot/
+
 # 编辑器 / 系统
 .vscode/
 .idea/
