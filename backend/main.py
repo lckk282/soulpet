@@ -123,9 +123,13 @@ def create_app() -> FastAPI:
 
         @app.get("/{full_path:path}")
         def spa(full_path: str):
+            # API 路径不存在时返回 404 JSON，避免前端把首页 HTML 当 JSON 解析、掩盖真实问题
+            if full_path.startswith("api/"):
+                return JSONResponse({"ok": False, "detail": f"接口不存在: /{full_path}"}, status_code=404)
             # 静态文件优先，其余交给 Vue Router
-            cand = dist / full_path
-            if full_path and cand.exists() and cand.is_file():
+            root = dist.resolve()
+            cand = (dist / full_path).resolve()
+            if full_path and cand.is_file() and root in cand.parents:
                 return FileResponse(cand)
             return FileResponse(dist / "index.html")
     else:

@@ -113,6 +113,30 @@ def validate(draft: dict) -> tuple[dict, list[str], list[str]]:
         errors.append("宠物名字不能为空")
     if not d.personality:
         warnings.append("未设置性格，将使用默认值")
+    else:
+        # 滑块由 Pydantic 静默钳制到 0~100，这里补一句提示，避免用户以为设置生效了原值
+        raw_sl = (draft.get("personality") or {}).get("sliders") or {}
+        for key, raw_v in raw_sl.items():
+            try:
+                iv = int(raw_v)
+            except (TypeError, ValueError):
+                continue
+            clamped = getattr(d.personality.sliders, key, None)
+            if clamped is not None and iv != clamped:
+                warnings.append(f"性格滑块「{key}」取值 {iv} 超出 0~100，已自动修正为 {clamped}")
+
+        sch = d.personality.schedule
+        if sch is not None:
+            if not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", sch.active_start or ""):
+                errors.append(f"每日活跃开始时间应为 HH:MM（如 09:00），当前为「{sch.active_start}」")
+            if not 1 <= sch.active_hours <= 24:
+                errors.append(f"每日活跃时长应在 1~24 小时之间，当前为 {sch.active_hours}")
+            quiet = (sch.proactive.quiet_hours if sch.proactive else None) or []
+            if len(quiet) not in (0, 2):
+                errors.append("免打扰时段需填 2 个时间点（开始、结束）")
+            for q in quiet:
+                if not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", q or ""):
+                    errors.append(f"免打扰时间应为 HH:MM（如 23:00），当前为「{q}」")
     if not d.model:
         errors.append("缺少大模型配置")
     else:
