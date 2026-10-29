@@ -6,7 +6,7 @@ const w = useWizard()
 const features = [
   { icon: 'lock', tint: 'var(--brand-soft)', color: 'var(--brand-2)', title: '数据在你手里', desc: '配置、记忆、密钥全部存在本机或你自己的服务器，不上传第三方。' },
   { icon: 'brain', tint: 'var(--ok-soft)', color: 'var(--ok)', title: '记忆可掌控', desc: '你说过的重要的事会被记住，可查看、可编辑、可导出、可遗忘。' },
-  { icon: 'plug', tint: '#eef0fb', color: '#5b62c4', title: '模块随开关', desc: 'QQ 连接器与桌面桌宠都是可选项，随时开关，互不影响。' },
+  { icon: 'plug', tint: '#fdf1d8', color: '#a9761f', title: '模块随开关', desc: 'QQ 连接器与桌面桌宠都是可选项，随时开关，互不影响。' },
 ]
 
 const acks: { key: 'privacy' | 'cost' | 'risk'; text: string }[] = [
@@ -18,28 +18,11 @@ const acks: { key: 'privacy' | 'cost' | 'risk'; text: string }[] = [
 
 <template>
   <div>
-    <div class="center" style="padding:6px 0 4px">
-      <div class="hero-pet">
-        <svg viewBox="0 0 120 120" width="96" height="96" aria-hidden="true" class="spin">
-          <defs>
-            <radialGradient id="egg" cx="42%" cy="34%" r="72%">
-              <stop offset="0%" stop-color="#fff7ee" />
-              <stop offset="60%" stop-color="#ffe6cd" />
-              <stop offset="100%" stop-color="#f7cf9f" />
-            </radialGradient>
-          </defs>
-          <ellipse cx="60" cy="112" rx="30" ry="5" fill="#e7d6c2" opacity="0.5" />
-          <path d="M60 18 C34 18 26 58 26 74 a34 34 0 0 0 68 0 C94 58 86 18 60 18 Z" fill="url(#egg)" stroke="#eab983" stroke-width="2.5" />
-          <path d="M40 70 l8 -6 6 8 8 -10 8 10 6 -8 6 6" fill="none" stroke="#eab983" stroke-width="2.5" stroke-linejoin="round" />
-          <circle cx="50" cy="55" r="3" fill="#5b4636" />
-          <circle cx="70" cy="55" r="3" fill="#5b4636" />
-          <path d="M55 62 q5 5 10 0" fill="none" stroke="#8a5a45" stroke-width="2.4" stroke-linecap="round" />
-          <ellipse cx="43" cy="61" rx="4" ry="2.6" fill="#f7a98f" opacity="0.6" />
-          <ellipse cx="77" cy="61" rx="4" ry="2.6" fill="#f7a98f" opacity="0.6" />
-        </svg>
-      </div>
-      <h1 style="margin-top:14px">从零创造一只只属于你的 AI 宠物</h1>
-      <p class="muted" style="max-width:460px;margin:0 auto">它会记住你说过的话，按你设定的性格陪你聊天，安安静静地住在你自己的设备里。</p>
+    <div style="padding:2px 0 2px">
+      <h2 style="font-size:22px;margin:0 0 6px">从零创造一只只属于你的 AI 宠物</h2>
+      <p class="muted" style="margin:0;font-size:13.5px">
+        它会记住你说过的话，按你设定的性格陪你聊天，安安静静地住在你自己的设备里。
+      </p>
     </div>
 
     <div class="feature-grid">

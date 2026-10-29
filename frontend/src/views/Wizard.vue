@@ -76,11 +76,12 @@ const onNext = () => {
       <div class="wizard__title">
         <span class="chip"><AppIcon name="sparkle" :size="12" /> 创造向导</span>
         <h1>捏一只属于你的 AI 宠物</h1>
+        <p class="wizard__sub">跟着向导走一遍，配置、记忆、密钥全部留在你自己这台机器上</p>
       </div>
       <span class="progress-pill">第 {{ w.index + 1 }} / {{ w.flow.length }} 步 · {{ progress }}%</span>
     </div>
 
-    <div class="card steps">
+    <nav class="steps" aria-label="向导步骤">
       <template v-for="(s, i) in w.flow" :key="s">
         <button
           class="steps__item"
@@ -95,7 +96,7 @@ const onNext = () => {
           <span class="steps__label">{{ LABEL[s] }}</span>
         </button>
       </template>
-    </div>
+    </nav>
 
     <div v-if="w.errors.length" class="banner danger inline-error" style="margin-bottom:14px">
       <AppIcon name="alert" :size="18" />

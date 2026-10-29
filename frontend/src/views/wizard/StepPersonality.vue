@@ -33,7 +33,11 @@ const removeRule = (i: number) => w.draft.personality.hard_rules.splice(i, 1)
         <span class="slider-row__label"><AppIcon :name="m.icon" :size="15" /> {{ m.label }}</span>
         <span class="slider-row__val">{{ w.draft.personality.sliders[key as keyof typeof META] }}</span>
       </div>
-      <input type="range" min="0" max="100" v-model.number="w.draft.personality.sliders[key as any]" />
+      <input
+        type="range" min="0" max="100"
+        v-model.number="w.draft.personality.sliders[key as any]"
+        :style="{ '--p': `${w.draft.personality.sliders[key as keyof typeof META]}%` } as any"
+      />
       <div class="between small muted"><span>{{ m.low }}</span><span>{{ m.high }}</span></div>
     </div>
 

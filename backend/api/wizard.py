@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import secrets
@@ -28,6 +29,21 @@ from ..schemas import (
 from ..secrets_store import get_store
 
 router = APIRouter(prefix="/api/wizard", tags=["wizard"])
+
+log = logging.getLogger("soulpet.wizard")
+
+
+def _safe_rmtree(target) -> None:
+    """删目录，绝不因为删不掉就把整个服务拖下水。
+
+    Windows 上文件被占用时 rmtree 会失败；某些运行环境还会在批量删除时
+    直接抛 SystemExit —— 那是 BaseException，`except Exception` 抓不住，
+    结果就是「点一下恢复出厂，服务直接退出」。这里连 BaseException 一起兜住。
+    """
+    try:
+        shutil.rmtree(target, ignore_errors=True)
+    except BaseException as e:  # noqa: BLE001
+        log.warning("清理目录 %s 失败，已跳过：%s", target, e)
 
 
 # ── 草稿 ────────────────────────────────────────────────────────
@@ -413,8 +429,6 @@ def reset(wipe_data: bool = True):
         clear_cache()
 
         if wipe_data:
-            import shutil
-
             from ..db import engine, init_db
 
             # SQLite 在 Windows 上不许删还有连接的文件，先归还连接池
@@ -425,7 +439,7 @@ def reset(wipe_data: bool = True):
                     f.unlink()
             for d in (paths.MEMORY_DIR, paths.ASSET_DIR):
                 if d.exists():
-                    shutil.rmtree(d, ignore_errors=True)
+                    _safe_rmtree(d)
             if paths.SECRETS_PATH.exists():
                 paths.SECRETS_PATH.unlink()
             store = get_store()

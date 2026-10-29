@@ -2,6 +2,7 @@
 import { useRoute, useRouter } from 'vue-router'
 import { computed } from 'vue'
 import AppIcon from './components/AppIcon.vue'
+import guideAvatar from './assets/guide/idle.webp'
 
 const router = useRouter()
 const route = useRoute()
@@ -28,7 +29,7 @@ const activeMap: Record<string, any> = {
     <header class="topbar">
       <div class="topbar__inner">
         <button class="brand" @click="go('/')">
-          <span class="brand__mark"><AppIcon name="paw" :size="20" /></span>
+          <span class="brand__mark"><img :src="guideAvatar" alt="" /></span>
           <span>SoulPet</span>
           <span class="chip gray" style="font-weight:600">本地优先</span>
         </button>
