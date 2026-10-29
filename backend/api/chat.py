@@ -28,10 +28,26 @@ def _require_pet() -> str:
     return pid
 
 
+def _own_conv(pet_id: str, conv_id: int) -> None:
+    """会话必须属于当前宠物：传别人的 id 就能往里读写，属于越权。"""
+    with session() as s:
+        conv = s.get(Conversation, conv_id)
+        if conv is None or conv.pet_id != pet_id:
+            raise HTTPException(404, "会话不存在")
+
+
+def _clamp(v: int, lo: int, hi: int) -> int:
+    try:
+        return max(lo, min(int(v), hi))
+    except (TypeError, ValueError):
+        return lo
+
+
 @router.post("")
 def chat(req: ChatRequest):
     pet_id = _require_pet()
     conv_id = req.conv_id or ensure_conv(pet_id).id
+    _own_conv(pet_id, conv_id)
 
     # 逐段推送，前端逐字渲染（打字机效果）
     def safe_gen():
@@ -57,7 +73,8 @@ def _json_one(obj: dict) -> str:
 def get_history(conv_id: int | None = None, limit: int = 100):
     pet_id = _require_pet()
     cid = conv_id or ensure_conv(pet_id).id
-    rows = history(cid, turns=limit)
+    _own_conv(pet_id, cid)
+    rows = history(cid, turns=_clamp(limit, 1, 200))
     return {"ok": True, "conv_id": cid, "messages": rows}
 
 

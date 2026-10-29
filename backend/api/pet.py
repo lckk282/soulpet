@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -64,9 +65,19 @@ def list_packs():
     return {"ok": True, "items": out}
 
 
+_PACK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+
+
+def _pack_dir(pack_id: str) -> Path:
+    """只接受字母数字下划线短横线的包名，杜绝 ../ 之类的花招。"""
+    if not _PACK_ID_RE.match(pack_id or ""):
+        raise HTTPException(400, "非法的素材包 id")
+    return paths.ASSET_DIR / pack_id
+
+
 @router.get("/packs/{pack_id}")
 def pack_detail(pack_id: str):
-    d = paths.ASSET_DIR / pack_id
+    d = _pack_dir(pack_id)
     if not d.exists():
         raise HTTPException(404, "素材包不存在")
     rep = asset_pack.validate_pack(d)
@@ -83,7 +94,7 @@ def pack_file(pack_id: str, name: str):
     """素材文件（桌宠与预览用）。禁止 ../ 穿越。"""
     if ".." in name or "/" in name or "\\" in name:
         raise HTTPException(400, "非法文件名")
-    p = paths.ASSET_DIR / pack_id / name
+    p = _pack_dir(pack_id) / name
     if not p.exists():
         raise HTTPException(404, "文件不存在")
     from fastapi.responses import FileResponse

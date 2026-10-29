@@ -14,10 +14,11 @@ import json
 import math
 import sqlite3
 from collections.abc import Iterable
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, select
 from sqlalchemy import update as sa_update
 
 from .. import paths
@@ -34,7 +35,7 @@ def _jsonl_path(ts: datetime) -> Path:
 
 def _fts_upsert(memory_id: int, content: str) -> None:
     try:
-        with sqlite3.connect(paths.DB_PATH) as con:
+        with closing(sqlite3.connect(paths.DB_PATH)) as con:
             con.execute("DELETE FROM memory_fts WHERE memory_id=?", (memory_id,))
             con.execute("INSERT INTO memory_fts(memory_id, content) VALUES(?,?)", (memory_id, content))
     except Exception:
@@ -43,7 +44,7 @@ def _fts_upsert(memory_id: int, content: str) -> None:
 
 def _fts_delete(memory_id: int) -> None:
     try:
-        with sqlite3.connect(paths.DB_PATH) as con:
+        with closing(sqlite3.connect(paths.DB_PATH)) as con:
             con.execute("DELETE FROM memory_fts WHERE memory_id=?", (memory_id,))
     except Exception:
         pass
@@ -119,6 +120,26 @@ def _decay(days: float) -> float:
     return math.exp(-0.03 * days)
 
 
+def _like_pattern(q: str) -> str:
+    """LIKE 通配符转义：否则用户搜「100%」「a_b」会把整库都捞出来。"""
+    esc = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{esc}%"
+
+
+def _fts_ids(q: str) -> list[tuple[int, float]]:
+    """FTS5 查询。用户输入的「C++」「"引号」是合法文字但不是合法 MATCH 表达式，
+    这里只负责返回命中，语法错误由调用方降级处理。"""
+    try:
+        with closing(sqlite3.connect(paths.DB_PATH)) as con:
+            return con.execute(
+                "SELECT memory_id, bm25(memory_fts) AS score FROM memory_fts WHERE memory_fts MATCH ? "
+                "ORDER BY score LIMIT 40",
+                (q,),
+            ).fetchall()
+    except sqlite3.Error:
+        return []
+
+
 def search(pet_id: str, query: str, topk: int = 7) -> list[Memory]:
     """先取候选（全文命中 / 置顶 / 最近），再统一打分排序。"""
     q = (query or "").strip()
@@ -137,23 +158,41 @@ def search(pet_id: str, query: str, topk: int = 7) -> list[Memory]:
             candidates[m.id] = 1.0
 
         if q:
-            try:
-                with sqlite3.connect(paths.DB_PATH) as con:
-                    rows = con.execute(
-                        "SELECT memory_id, bm25(memory_fts) AS score FROM memory_fts WHERE memory_fts MATCH ? "
-                        "ORDER BY score LIMIT 40",
-                        (q,),
-                    ).fetchall()
-            except Exception:
-                rows = []
+            rows = _fts_ids(q)
+            if not rows:
+                # FTS 语法不认（「C++」「a-b」）或全是标点时，退回子串匹配 ——
+                # 宁可慢一点，也不能让搜索静默失效、返回一堆不相关的东西。
+                like = _like_pattern(q)
+                hit = (
+                    s.execute(
+                        select(Memory.id)
+                        .where(
+                            Memory.pet_id == pet_id,
+                            Memory.archived.is_(False),
+                            Memory.content.like(like, escape="\\"),
+                        )
+                        .order_by(Memory.created_at.desc())
+                        .limit(40)
+                    )
+                    .scalars()
+                    .all()
+                )
+                rows = [(int(i), 0.5) for i in hit]
             hit_ids = [r[0] for r in rows]
             if hit_ids:
                 fts = (
-                    s.execute(select(Memory).where(Memory.id.in_(hit_ids), Memory.archived.is_(False))).scalars().all()
+                    s.execute(
+                        select(Memory).where(
+                            Memory.id.in_(hit_ids), Memory.pet_id == pet_id, Memory.archived.is_(False)
+                        )
+                    )
+                    .scalars()
+                    .all()
                 )
+                scores = dict(rows)
                 for m in fts:
-                    # bm25 越小越相关，映射到 0~1
-                    raw = dict(rows).get(m.id, 0.0)
+                    # bm25 越小越相关，映射到 0~1；子串兜底命中的分值固定 0.5
+                    raw = scores.get(m.id, 0.5)
                     candidates[m.id] = max(candidates.get(m.id, 0.0), 1.0 / (1.0 + abs(raw)))
 
         recent = (
@@ -202,8 +241,8 @@ def timeline(
         if type_:
             cond.append(Memory.type == type_)
         if q:
-            like = f"%{q}%"
-            cond.append(or_(Memory.content.like(like)))
+            like = _like_pattern(q)
+            cond.append(Memory.content.like(like, escape="\\"))
         total = s.execute(select(func.count(Memory.id)).where(*cond)).scalar() or 0
         rows = (
             s.execute(
@@ -288,18 +327,35 @@ def export_jsonl(pet_id: str) -> list[dict]:
         ]
 
 
+def _coerce_float(v, default: float) -> float:
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return default
+    if f != f:  # NaN
+        return default
+    return f
+
+
+def _coerce_text(v, default: str = "") -> str:
+    return v if isinstance(v, str) else (str(v) if v is not None else default)
+
+
 def import_jsonl(pet_id: str, items: Iterable[dict], replace: bool = False) -> int:
+    """导入记忆。单条脏数据只能被跳过，不能让整次导入 500。"""
     if replace:
         forget_all(pet_id)
     n = 0
     for it in items:
+        if not isinstance(it, dict):
+            continue
         if add(
             pet_id,
-            it.get("content", ""),
-            it.get("type", "fact"),
-            float(it.get("importance", 0.6)),
-            it.get("emotion", ""),
-            it.get("source", "manual"),
+            _coerce_text(it.get("content")),
+            _coerce_text(it.get("type"), "fact") or "fact",
+            _coerce_float(it.get("importance", 0.6), 0.6),
+            _coerce_text(it.get("emotion")),
+            _coerce_text(it.get("source"), "manual") or "manual",
         ):
             n += 1
     return n

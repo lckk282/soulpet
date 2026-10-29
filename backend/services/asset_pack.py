@@ -234,12 +234,33 @@ def packs() -> list[dict]:
     return out
 
 
+MAX_ENTRIES = 2000
+MAX_UNCOMPRESSED = 200 * 1024 * 1024
+ALLOWED_SUFFIX = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".json", ".txt", ".md"}
+
+
 def safe_extract(zip_path: Path, dest: Path) -> None:
-    """解压并防 Zip Slip 路径穿越。"""
+    """解压并防 Zip Slip 路径穿越。
+
+    三道闸：路径必须落在 dest 内（用 resolve + is_relative_to，不用字符串前缀 ——
+    `pack_10/x` 会以 `pack_1` 为前缀而蒙过检查）、文件数上限、解压后总大小上限
+    （20MB 的 zip 可以解出几十 GB，即所谓 zip 炸弹）。
+    """
     dest.mkdir(parents=True, exist_ok=True)
+    root = dest.resolve()
     with zipfile.ZipFile(zip_path) as z:
-        for entry in z.namelist():
-            target = (dest / entry).resolve()
-            if not str(target).startswith(str(dest.resolve())):
-                raise ValueError(f"压缩包内含有非法路径：{entry}")
-        z.extractall(dest)
+        infos = z.infolist()
+        if len(infos) > MAX_ENTRIES:
+            raise ValueError(f"压缩包内文件过多（上限 {MAX_ENTRIES} 个）")
+        total = sum(max(0, i.file_size) for i in infos)
+        if total > MAX_UNCOMPRESSED:
+            raise ValueError(f"解压后体积过大（{total // (1024 * 1024)}MB，上限 200MB）")
+        for entry in infos:
+            if entry.is_dir():
+                continue
+            target = (root / entry.filename).resolve()
+            if target != root and not target.is_relative_to(root):
+                raise ValueError(f"压缩包内含有非法路径：{entry.filename}")
+            if target.suffix.lower() not in ALLOWED_SUFFIX:
+                raise ValueError(f"素材包内不允许的文件类型：{entry.filename}")
+        z.extractall(root)

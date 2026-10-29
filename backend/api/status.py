@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -57,22 +58,26 @@ def usage():
 
 
 @router.get("/events")
-def events(max_seconds: int = 600):
+async def events(max_seconds: int = 600):
     """SSE 事件流：桌宠与网页共用。
 
     有最大时长限制（默认 10 分钟），到点后自动结束，避免长连接线程泄漏；
     客户端（EventSource）会自动重连。
+
+    注意这里必须是 async：同步生成器里的 time.sleep 会占住线程池的工作线程，
+    开十几个标签页就能把 uvicorn 默认 40 个线程耗光，所有接口一起卡死。
     """
 
-    def gen():
-        import time
+    async def gen():
+        import asyncio
 
         yield (
             "data: " + json.dumps({"type": "hello", "history": event_bus.history()[-10:]}, ensure_ascii=False) + "\n\n"
         )
         last = 0
-        deadline = time.time() + max(10, min(max_seconds, 3600))
-        while time.time() < deadline:
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + max(10, min(max_seconds, 3600))
+        while loop.time() < deadline:
             hist = event_bus.history()
             if len(hist) > last:
                 for ev in hist[last:]:
@@ -80,17 +85,23 @@ def events(max_seconds: int = 600):
                 last = len(hist)
             else:
                 yield ": keep-alive\n\n"
-            time.sleep(0.5)
+            await asyncio.sleep(1.0)
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers=SSE_HEADERS)
 
 
 @router.get("/logs")
 def logs(module: str = "backend", lines: int = 100):
-    name = "backend.log" if module == "backend" else f"{module}.log"
-    # 防止 ?lines=10000000 把整个日志读进内存
+    # 模块名来自 URL，必须净化：`?module=../../Windows/win` 原本能读到日志目录外的文件
+    raw = (module or "").lower()
+    safe = re.sub(r"[^a-z0-9_]", "", raw)[:32]
+    if not safe or safe != raw:
+        raise HTTPException(400, "非法的模块名")
     lines = max(1, min(int(lines or 100), 5000))
-    p = paths.LOG_DIR / name
+    root = paths.LOG_DIR.resolve()
+    p = (root / f"{safe}.log").resolve()
+    if root not in p.parents:
+        raise HTTPException(400, "非法的模块名")
     if not p.exists():
         return {"ok": True, "lines": [], "path": str(p)}
     try:

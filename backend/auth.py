@@ -18,6 +18,8 @@ import hmac
 import logging
 import os
 import secrets
+import threading
+import time
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -32,6 +34,41 @@ _TOKEN_FILE = paths.DATA_DIR / "access_token.txt"
 # 不需要口令就能访问的路径：健康检查（容器探针）、静态资源、登录入口
 _PUBLIC_PREFIXES = ("/assets/", "/api/auth/", "/favicon")
 _PUBLIC_EXACT = {"/healthz"}
+
+# ── 失败退避：公网实例上口令只有几十位，但没有限速的话可以一直试 ────
+_FAIL_LIMIT = 10
+_FAIL_WINDOW = 300.0  # 5 分钟内允许的失败次数
+_FAIL_BLOCK = 60.0  # 超限后封多久
+_fails: dict[str, list[float]] = {}
+_fail_lock = threading.Lock()
+
+
+def _client(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+def _blocked_for(key: str) -> float:
+    """返回剩余封禁秒数，0 表示没被限速。"""
+    now = time.time()
+    with _fail_lock:
+        hits = [t for t in _fails.get(key, []) if now - t < _FAIL_WINDOW]
+        if hits:
+            _fails[key] = hits
+        else:
+            _fails.pop(key, None)
+        if len(hits) < _FAIL_LIMIT:
+            return 0.0
+        return max(0.0, _FAIL_BLOCK - (now - hits[-1]))
+
+
+def _note_fail(key: str) -> None:
+    with _fail_lock:
+        _fails.setdefault(key, []).append(time.time())
+
+
+def _clear_fail(key: str) -> None:
+    with _fail_lock:
+        _fails.pop(key, None)
 
 
 def _load_token() -> str:
@@ -104,8 +141,18 @@ async def token_guard(request: Request, call_next):
     if path in _PUBLIC_EXACT or any(path.startswith(p) for p in _PUBLIC_PREFIXES):
         return await call_next(request)
 
+    who = _client(request)
+    wait = _blocked_for(who)
+    if wait > 0:
+        return JSONResponse(
+            {"ok": False, "detail": f"口令错误次数过多，请 {int(wait) + 1} 秒后再试", "need_token": True},
+            status_code=429,
+            headers={"Retry-After": str(int(wait) + 1)},
+        )
+
     supplied = _supplied_token(request)
     if supplied and hmac.compare_digest(supplied, token):
+        _clear_fail(who)
         # 用 ?token= 进来的一次性换 Cookie，然后把地址栏里的口令抹掉
         if request.query_params.get("token"):
             target = str(request.url.remove_query_params("token"))
@@ -121,6 +168,8 @@ async def token_guard(request: Request, call_next):
             return resp
         return await call_next(request)
 
+    if supplied:
+        _note_fail(who)
     if path.startswith("/api/"):
         return JSONResponse(
             {"ok": False, "detail": "需要访问口令：请在地址后加 ?token=你的口令 登录一次", "need_token": True},

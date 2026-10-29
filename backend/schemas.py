@@ -337,6 +337,15 @@ class ChatRequest(_Base):
     conv_id: int | None = None
     stream: bool = True
 
+    @field_validator("text")
+    @classmethod
+    def _no_blank(cls, v: str) -> str:
+        # 全空格也能过 min_length=1，会往库里塞一条空消息
+        v = v.strip()
+        if not v:
+            raise ValueError("消息不能为空")
+        return v
+
 
 class MemoryOut(BaseModel):
     id: int

@@ -103,6 +103,9 @@ class DraftIn(BaseModel):
 @router.post("/draft")
 def save_draft(body: DraftIn):
     data = _strip_secrets(dict(body.draft or {}))
+    # 草稿是一次性表单快照，256KB 足够；不设上限的话一个请求就能把磁盘写满
+    if len(json.dumps(data, ensure_ascii=False).encode("utf-8")) > 256 * 1024:
+        raise HTTPException(413, "草稿过大（上限 256KB）")
     _atomic_write_json(paths.DRAFT_PATH, {"saved_at": now_iso(), "draft": data})
     return {"ok": True, "saved_at": now_iso()}
 

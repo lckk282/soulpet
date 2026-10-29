@@ -33,9 +33,19 @@ class UpdateIn(BaseModel):
     pinned: bool | None = None
 
 
+def _clamp(v: int, lo: int, hi: int) -> int:
+    try:
+        return max(lo, min(int(v), hi))
+    except (TypeError, ValueError):
+        return lo
+
+
 @router.get("/timeline")
 def timeline(type: str | None = None, q: str | None = None, limit: int = 50, offset: int = 0):
-    rows, total = mem.timeline(_pet_id(), type_=type, q=q, limit=limit, offset=offset)
+    # 不夹紧的话 ?limit=100000 会把整库一次捞进内存
+    rows, total = mem.timeline(
+        _pet_id(), type_=type, q=q, limit=_clamp(limit, 1, 200), offset=max(0, _clamp(offset, 0, 1_000_000))
+    )
     return {
         "ok": True,
         "total": total,
@@ -69,8 +79,17 @@ def add(body: AddIn):
     return {"ok": True, "id": m.id}
 
 
+def _own(mid: int):
+    """记忆必须属于当前宠物，避免传别人的 id 越权改删。"""
+    m = mem.get(mid)
+    if not m or m.pet_id != _pet_id():
+        raise HTTPException(404, "记忆不存在")
+    return m
+
+
 @router.put("/{mid}")
 def update(mid: int, body: UpdateIn):
+    _own(mid)
     m = mem.update(mid, **body.model_dump())
     if not m:
         raise HTTPException(404, "记忆不存在")
@@ -79,13 +98,14 @@ def update(mid: int, body: UpdateIn):
 
 @router.delete("/{mid}")
 def delete(mid: int):
+    _own(mid)
     mem.remove(mid)
     return {"ok": True}
 
 
 @router.get("/search")
 def search(q: str = "", topk: int = 7):
-    rows = mem.search(_pet_id(), q, topk=topk)
+    rows = mem.search(_pet_id(), q, topk=_clamp(topk, 1, 20))
     return {"ok": True, "items": [{"id": r.id, "content": r.content, "type": r.type} for r in rows]}
 
 
@@ -101,8 +121,10 @@ class ImportIn(BaseModel):
 
 @router.post("/import")
 def import_(body: ImportIn):
+    if len(body.items) > 5000:
+        raise HTTPException(400, "一次最多导入 5000 条记忆")
     n = mem.import_jsonl(_pet_id(), body.items, replace=body.replace)
-    return {"ok": True, "imported": n}
+    return {"ok": True, "imported": n, "skipped": len(body.items) - n}
 
 
 @router.delete("")
