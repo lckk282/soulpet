@@ -11,9 +11,23 @@ PREF_PAT = re.compile(
     r"(我(?:很|挺|最|不|不太|特别)?(?:喜欢|讨厌|害怕|想|希望|习惯|需要))(.{1,30})"
 )
 FACT_PAT = re.compile(
-    r"(我(?:叫|是|住在|在|今年|刚|已经|的.{1,6}是))(.{1,30})"
+    r"(我(?:叫|是|住在|在|今年|刚|已经|的.{1,6}(?:叫|是)))(.{1,30})"
 )
-NEGatives = ("吗", "？", "?")
+NEGatives = ("吗", "呢", "？", "?")
+# 以疑问词结尾的片段不是事实，只是提问，不能进记忆
+QWORDS = ("什么", "谁", "哪里", "哪儿", "多少", "怎么", "为什么", "哪天", "几点")
+TRIM = " ，。,.!！？?、；;：:\n\t"
+
+
+def _worth(frag: str) -> bool:
+    """判断一个片段值不值得记住：够长、不是提问、不是无信息量的空话。"""
+    if len(frag) < 4:
+        return False
+    if frag.endswith(NEGatives) or frag.endswith(QWORDS):
+        return False
+    # 整段都是疑问词（如「我叫什么」「我是谁」）没有信息量
+    core = re.sub(r"^我(?:叫|是|住在|在|今年|刚|已经)", "", frag)
+    return not (core and core.endswith(QWORDS))
 
 
 def rule_extract(user_text: str, reply: str = "") -> list[dict]:
@@ -24,24 +38,29 @@ def rule_extract(user_text: str, reply: str = "") -> list[dict]:
         return out
 
     for m in PREF_PAT.finditer(text):
-        frag = (m.group(1) + m.group(2)).strip(" ，。,.!！")
-        if len(frag) < 4 or frag.endswith(NEGatives):
+        frag = (m.group(1) + m.group(2)).strip(TRIM)
+        if not _worth(frag):
             continue
         out.append({"type": "preference", "content": frag, "importance": 0.7, "source": "user_stated"})
 
     for m in FACT_PAT.finditer(text):
-        frag = (m.group(1) + m.group(2)).strip(" ，。,.!！")
-        if len(frag) < 4:
+        frag = (m.group(1) + m.group(2)).strip(TRIM)
+        if not _worth(frag):
             continue
         out.append({"type": "fact", "content": frag, "importance": 0.6, "source": "user_stated"})
 
-    # 去重
+    # 去重：先去掉完全相同项，再丢掉被更长片段包含的短片段
     seen, uniq = set(), []
     for it in out:
         if it["content"] in seen:
             continue
         seen.add(it["content"])
         uniq.append(it)
+    uniq = [
+        a
+        for a in uniq
+        if not any(a["content"] != b["content"] and a["content"] in b["content"] for b in uniq)
+    ]
     return uniq[:3]
 
 
