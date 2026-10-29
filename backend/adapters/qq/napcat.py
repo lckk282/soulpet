@@ -3,6 +3,7 @@
 本项目不实现任何 QQ 协议，只与用户自己部署的 NapCat 通过 OneBot11 通信。
 依赖：websockets（pip install -r requirements-qq.txt）
 """
+
 from __future__ import annotations
 
 import json

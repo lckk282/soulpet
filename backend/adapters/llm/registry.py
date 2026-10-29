@@ -3,6 +3,7 @@
 注意：这里只存「连接信息」，不存价格、不判断某个模型当前是否存在。
 模型名以厂商后台为准，价格由用户在 config/pricing.yaml 维护。
 """
+
 from __future__ import annotations
 
 import yaml

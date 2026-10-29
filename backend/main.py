@@ -1,8 +1,10 @@
 """应用装配。"""
+
 from __future__ import annotations
 
 import logging
 import mimetypes
+import os
 import sys
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
@@ -12,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import paths
+from . import auth, paths
 from .api import chat, memory, model, modules, pet, status, wizard  # noqa: E402
 from .config_store import ensure_defaults, is_initialized  # noqa: E402
 from .core import scheduler as sched  # noqa: E402
@@ -27,7 +29,7 @@ mimetypes.add_type("text/css", ".css")
 mimetypes.add_type("application/json", ".json")
 mimetypes.add_type("image/svg+xml", ".svg")
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 
 
 def setup_logging(level: str = "INFO") -> None:
@@ -62,6 +64,14 @@ def create_app() -> FastAPI:
         ensure_defaults()
         init_db()
         asset_pack.ensure_default_pack()
+        # 云服部署 = 公网可访问，必须挂上访问口令；本地默认不开
+        try:
+            from .config_store import get as get_cfg
+
+            gcfg = get_cfg("global")
+            auth.ensure_token(bool(gcfg.server.auth_required))
+        except Exception as e:  # pragma: no cover - 配置异常不该拖垮启动
+            logging.getLogger("soulpet").warning("检查访问口令失败：%s", e)
         try:
             sched.start()
         except Exception:
@@ -92,11 +102,25 @@ def create_app() -> FastAPI:
         redoc_url=None,
         lifespan=lifespan,
     )
+
+    # 口令闸门先注册，CORS 后注册 —— 注册越晚越靠外层，
+    # 这样预检和 401 响应都还能带上 CORS 头。
+    @app.middleware("http")
+    async def _token_guard(request, call_next):
+        if request.method == "OPTIONS":  # 预检请求不放行会被浏览器判成网络错误
+            return await call_next(request)
+        return await auth.token_guard(request, call_next)
+
+    # 本地服务的 CORS 必须收紧：如果放开成 "*"，你一边开着 SoulPet、一边逛任意网站，
+    # 那个网站就能用 fetch 直接读走 http://127.0.0.1:8787/api/memory 里的全部记忆。
+    # 生产是同源请求，根本不需要 CORS；这里只放行本地开发用的 Vite 端口。
+    default_origins = ",".join(f"http://{h}:{p}" for h in ("127.0.0.1", "localhost") for p in (5173, 4173, 8787))
+    origins = [o.strip() for o in os.environ.get("SOULPET_CORS_ORIGINS", default_origins).split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://127.0.0.1", "http://localhost", "*"],
+        allow_origins=origins,
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
 
@@ -106,6 +130,11 @@ def create_app() -> FastAPI:
     @app.get("/healthz")
     def healthz():
         return {"ok": True, "version": VERSION, "initialized": is_initialized()}
+
+    @app.get("/api/auth/status")
+    def auth_status():
+        """前端据此决定是否提示「需要访问口令」。不需要口令时也返回 200。"""
+        return {"ok": True, **auth.token_hint()}
 
     @app.get("/api/meta")
     def meta():
@@ -119,6 +148,7 @@ def create_app() -> FastAPI:
             "secret_backend": get_store().backend_name,
             "providers": load_registry(),
             "home": str(paths.HOME),
+            **auth.token_hint(),
         }
 
     # 静态资源：构建过前端就托管 dist，否则走「未构建」提示页
@@ -142,6 +172,7 @@ def create_app() -> FastAPI:
                 return FileResponse(cand)
             return FileResponse(dist / "index.html")
     else:
+
         @app.get("/")
         def no_frontend():
             return JSONResponse(

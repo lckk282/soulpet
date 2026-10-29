@@ -4,6 +4,7 @@
   · WAL 模式 + busy_timeout，避免多连接写冲突
   · Uvicorn 必须单 worker，不要用 --workers >1
 """
+
 from __future__ import annotations
 
 import sqlite3

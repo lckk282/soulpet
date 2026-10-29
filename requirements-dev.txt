@@ -1,6 +1,8 @@
 # 开发/测试
 pytest>=8.0
 ruff>=0.6
+# 端到端 UI 冒烟（tests/ui_smoke.py）；首次还需执行 playwright install chromium
+playwright>=1.44
 
 # QQ 连接器（可选模块，按需安装）
 # pip install -r requirements-qq.txt

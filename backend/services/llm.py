@@ -3,6 +3,7 @@
 · 正常模式：读 config/model.yaml + 钥匙串里的 Key，构造 OpenAI 兼容适配器
 · 体验模式（provider=mock 或没有 Key）：使用内置离线回复，零配置也能跑通全流程
 """
+
 from __future__ import annotations
 
 from ..adapters.llm.mock import build_mock

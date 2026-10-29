@@ -1,4 +1,5 @@
 """模块开关 API。"""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException

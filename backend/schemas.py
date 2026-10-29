@@ -5,6 +5,7 @@
   · 前端向导表单由本文件的 *Form 模型定义（前端校验规则与之对应）
   · 后端 API 的请求/响应同样由本文件定义
 """
+
 from __future__ import annotations
 
 from datetime import datetime

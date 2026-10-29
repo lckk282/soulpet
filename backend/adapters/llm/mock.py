@@ -3,6 +3,7 @@
 目的：让用户下载仓库、双击启动，就能在没有 API Key 的情况下
 完整走通「向导 → 聊天 → 记忆 → 桌宠」全流程，确认喜欢之后再填 Key。
 """
+
 from __future__ import annotations
 
 import random

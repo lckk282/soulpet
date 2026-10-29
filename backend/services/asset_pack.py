@@ -3,6 +3,7 @@
 默认形象用参数化 SVG 生成（仓库里不放二进制图片，体积小、可 diff、可手改）。
 校验不需要 Pillow：PNG 直接读 IHDR 头拿宽高与是否有 alpha 通道。
 """
+
 from __future__ import annotations
 
 import json
@@ -29,6 +30,7 @@ DEFAULT_PACK_ID = "pack_default"
 
 # ── PNG 头解析 ──────────────────────────────────────────────────
 
+
 def png_info(path: Path) -> dict | None:
     """读取 PNG IHDR：宽、高、是否有 alpha。无需第三方库。"""
     try:
@@ -45,6 +47,7 @@ def png_info(path: Path) -> dict | None:
 
 
 # ── 默认形象（SVG） ─────────────────────────────────────────────
+
 
 def _svg(view: str, expr: str) -> str:
     """参数化生成一个 Q 版角色 SVG（同一套配色与比例，保证一致性）。"""
@@ -65,7 +68,9 @@ def _svg(view: str, expr: str) -> str:
         blush = '<ellipse cx="156" cy="166" rx="14" ry="8" fill="#ff7f9f" opacity="0.85"/><ellipse cx="244" cy="166" rx="14" ry="8" fill="#ff7f9f" opacity="0.85"/>'
     elif expr == "sad":
         eyes = eye_wide.format(cx=180) + eye_wide.format(cx=220)
-        mouth = '<path d="M188 184 q 12 -12 24 0" stroke="#c0466a" stroke-width="4" fill="none" stroke-linecap="round"/>'
+        mouth = (
+            '<path d="M188 184 q 12 -12 24 0" stroke="#c0466a" stroke-width="4" fill="none" stroke-linecap="round"/>'
+        )
         blush = '<ellipse cx="180" cy="186" rx="5" ry="9" fill="#8ec9ff" opacity="0.8"/><ellipse cx="220" cy="186" rx="5" ry="9" fill="#8ec9ff" opacity="0.8"/>'
     else:
         eyes = eye_open.format(cx=180) + eye_open.format(cx=220)
@@ -115,12 +120,44 @@ def ensure_default_pack() -> Path:
         slots[slot] = {"file": f"{slot}.svg", "note": "内置默认形象（SVG）"}
 
     actions = [
-        {"id": "idle", "type": "procedural", "base": "front", "curve": {"scale": [1.0, 1.02], "dy": [0, -3], "dur_ms": 2400, "loop": "pingpong"}},
-        {"id": "sway", "type": "procedural", "base": "front", "curve": {"rotate": [-3, 3], "dur_ms": 1800, "loop": "pingpong"}},
-        {"id": "wave", "type": "procedural", "base": "front45", "curve": {"rotate": [0, 8], "dur_ms": 900, "loop": "once"}},
-        {"id": "tilt", "type": "procedural", "base": "front45", "curve": {"rotate": [0, 8], "dur_ms": 900, "loop": "once"}},
-        {"id": "blink", "type": "frames", "frames": ["front", "shy"], "dur_ms": 200, "loop": "random", "interval_ms": [2200, 6000]},
-        {"id": "jump", "type": "procedural", "base": "happy", "curve": {"dy": [0, -40, 0], "scale": [1.0, 1.06, 1.0], "dur_ms": 700, "loop": "once"}},
+        {
+            "id": "idle",
+            "type": "procedural",
+            "base": "front",
+            "curve": {"scale": [1.0, 1.02], "dy": [0, -3], "dur_ms": 2400, "loop": "pingpong"},
+        },
+        {
+            "id": "sway",
+            "type": "procedural",
+            "base": "front",
+            "curve": {"rotate": [-3, 3], "dur_ms": 1800, "loop": "pingpong"},
+        },
+        {
+            "id": "wave",
+            "type": "procedural",
+            "base": "front45",
+            "curve": {"rotate": [0, 8], "dur_ms": 900, "loop": "once"},
+        },
+        {
+            "id": "tilt",
+            "type": "procedural",
+            "base": "front45",
+            "curve": {"rotate": [0, 8], "dur_ms": 900, "loop": "once"},
+        },
+        {
+            "id": "blink",
+            "type": "frames",
+            "frames": ["front", "shy"],
+            "dur_ms": 200,
+            "loop": "random",
+            "interval_ms": [2200, 6000],
+        },
+        {
+            "id": "jump",
+            "type": "procedural",
+            "base": "happy",
+            "curve": {"dy": [0, -40, 0], "scale": [1.0, 1.06, 1.0], "dur_ms": 700, "loop": "once"},
+        },
     ]
     manifest = {
         "schema": "soulpet.assetpack/1.0",
@@ -135,6 +172,7 @@ def ensure_default_pack() -> Path:
 
 
 # ── 校验 ────────────────────────────────────────────────────────
+
 
 def validate_pack(pack_dir: Path) -> dict:
     missing: list[str] = []

@@ -3,6 +3,7 @@
 设计：子模块独立进程或独立任务，崩了不影响主聊天；状态落 module_status 表，
 前端「运行状态」面板直接读。
 """
+
 from __future__ import annotations
 
 import subprocess

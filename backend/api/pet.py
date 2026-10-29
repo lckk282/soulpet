@@ -1,4 +1,5 @@
 """宠物档案与素材 API。"""
+
 from __future__ import annotations
 
 import json
@@ -44,9 +45,7 @@ def update_profile(body: dict):
                 setattr(prof.personality.sliders, k, max(0, min(100, int(v))))
         from ..core.prompt_builder import map_derived
 
-        prof.personality.derived = type(prof.personality.derived)(
-            **map_derived(prof.personality.sliders.model_dump())
-        )
+        prof.personality.derived = type(prof.personality.derived)(**map_derived(prof.personality.sliders.model_dump()))
     for k in ("tags", "hard_rules"):
         if k in per:
             setattr(prof.personality, k, list(per[k]))

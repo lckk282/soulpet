@@ -1,4 +1,5 @@
 """向导 API：草稿存取、服务端二次校验、一次性提交生成整只宠物。"""
+
 from __future__ import annotations
 
 import json
@@ -31,6 +32,7 @@ router = APIRouter(prefix="/api/wizard", tags=["wizard"])
 
 # ── 草稿 ────────────────────────────────────────────────────────
 
+
 def _atomic_write_json(path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
@@ -43,11 +45,18 @@ _SECRET_KEYS = {"api_key", "token", "app_secret", "password", "client_secret"}
 
 
 def _strip_secrets(obj):
-    """递归清理：草稿里绝不保存任何密钥真值（含嵌套结构）。"""
+    """递归清理：草稿里绝不保存任何密钥真值（含嵌套结构）。
+
+    注意是「删掉这个键」而不是填 "***"：占位符一旦被读回并提交，
+    就会被当成真 Key 写进钥匙串，等于给用户塞了一个假密钥。
+    """
     if isinstance(obj, dict):
-        return {
-            k: ("***" if (k in _SECRET_KEYS and v) else _strip_secrets(v)) for k, v in obj.items()
-        }
+        out = {}
+        for k, v in obj.items():
+            if k in _SECRET_KEYS and v:
+                continue
+            out[k] = _strip_secrets(v)
+        return out
     if isinstance(obj, list):
         return [_strip_secrets(v) for v in obj]
     return obj
@@ -94,6 +103,7 @@ def ack(ack: dict):
 
 
 # ── 校验 ────────────────────────────────────────────────────────
+
 
 def validate(draft: dict) -> tuple[dict, list[str], list[str]]:
     """返回 (normalized, errors, warnings)。errors 非空即不允许提交。"""
@@ -180,6 +190,7 @@ def validate_api(body: ValidateIn):
 
 
 # ── 提交 ────────────────────────────────────────────────────────
+
 
 def _backup_configs() -> str | None:
     paths.ensure_dirs()
@@ -375,16 +386,61 @@ def _group(g: dict):
 
 
 @router.post("/reset")
-def reset():
-    """回到出厂：清空配置与数据（设置页里点「重新捏宠」）。"""
+def reset(wipe_data: bool = True):
+    """回到出厂：清空配置（以及可选的数据库与记忆）。
+
+    前端文案写的是「恢复出厂」，那就必须真的把记忆清掉，不能只删配置留一堆脏数据。
+    动手前先整包备份到 data/backups/，用户后悔还能捞回来。
+    """
+    backup_path = None
     try:
-        for name in ("global", "pet", "schedule", "deploy", "model", "modules", "qq"):
-            p = paths.CONFIG_DIR / f"{name}.yaml"
-            if p.exists():
-                p.unlink()
+        from .status import _backup_configs
+
+        backup_path = _backup_configs()
+    except Exception:
+        backup_path = None
+
+    try:
+        # 按注册表删，别手写文件名 —— 以前写死 "pet.yaml" 而真实文件叫
+        # "pet.profile.yaml"，结果「恢复出厂」根本没清掉宠物档案。
+        from ..config_store import _REGISTRY
+
+        for path, _model in _REGISTRY.values():
+            if path.exists():
+                path.unlink()
         if paths.DRAFT_PATH.exists():
             paths.DRAFT_PATH.unlink()
         clear_cache()
+
+        if wipe_data:
+            import shutil
+
+            from ..db import engine, init_db
+
+            # SQLite 在 Windows 上不许删还有连接的文件，先归还连接池
+            engine.dispose()
+            for suffix in ("", "-wal", "-shm"):
+                f = paths.DB_PATH.with_name(paths.DB_PATH.name + suffix)
+                if f.exists():
+                    f.unlink()
+            for d in (paths.MEMORY_DIR, paths.ASSET_DIR):
+                if d.exists():
+                    shutil.rmtree(d, ignore_errors=True)
+            if paths.SECRETS_PATH.exists():
+                paths.SECRETS_PATH.unlink()
+            store = get_store()
+            for k in ("llm_api_key", "qq_token", "qq_app_secret"):
+                try:
+                    store.delete(k)
+                except Exception:
+                    pass
+            # 立刻重建空库，避免重置后到重启前的一小段时间里接口报「no such table」
+            paths.ensure_dirs()
+            init_db()
     except Exception as e:
         raise HTTPException(500, f"重置失败：{e}")
-    return {"ok": True, "message": "已清空配置，重启服务即可重新捏宠"}
+
+    msg = "已恢复出厂设置，请重启服务后重新捏宠"
+    if backup_path:
+        msg += f"（重置前的数据已备份到 {backup_path}）"
+    return {"ok": True, "message": msg, "backup": backup_path, "restart_required": True}

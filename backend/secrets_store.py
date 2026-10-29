@@ -6,12 +6,18 @@
   3. 环境变量 SOULPET_SECRET_<KEY>（容器部署，CI 测试）
 
 配置文件里只存引用字符串（如 keyring://soulpet/llm_api_key），绝不存真值。
+
+环境变量：
+  SOULPET_SECRET_BACKEND=file  强制只走加密文件，不碰系统钥匙串（CI / 容器 / 测试）
+  SOULPET_MASTER_KEY=<口令>     加密文件后端的主密码
 """
+
 from __future__ import annotations
 
 import base64
 import hashlib
 import json
+import logging
 import os
 import secrets
 from pathlib import Path
@@ -19,6 +25,9 @@ from pathlib import Path
 from . import paths
 
 SERVICE_NAME = "soulpet"
+log = logging.getLogger("soulpet.secrets")
+
+_warned_plaintext = False
 
 
 class SecretStore:
@@ -26,6 +35,8 @@ class SecretStore:
         self._backend = None
         self._file_path: Path = paths.SECRETS_PATH
         self._master_key = master_key or os.environ.get("SOULPET_MASTER_KEY", "")
+        if os.environ.get("SOULPET_SECRET_BACKEND", "").lower() == "file":
+            return
         try:
             import keyring  # noqa: PLC0415
 
@@ -40,6 +51,11 @@ class SecretStore:
     @property
     def backend_name(self) -> str:
         return "keyring" if self._backend else "file"
+
+    @property
+    def plaintext_risk(self) -> bool:
+        """没有钥匙串、也没有主密码时，文件后端只能存明文 —— 前端据此提示用户。"""
+        return self._backend is None and not self._master_key
 
     def get(self, key: str) -> str | None:
         env_val = os.environ.get(f"SOULPET_SECRET_{key.upper()}")
@@ -90,12 +106,20 @@ class SecretStore:
             return {}
 
     def _save_file(self, items: dict) -> None:
+        global _warned_plaintext
         self._file_path.parent.mkdir(parents=True, exist_ok=True)
         plain = json.dumps(items, ensure_ascii=False).encode("utf-8")
         try:
             blob = self._encrypt(plain)
         except Exception:
             # 没有 cryptography 或主密码缺失时，退化为明文并显著警告
+            if not _warned_plaintext:
+                _warned_plaintext = True
+                log.warning(
+                    "没有可用的加密后端（系统钥匙串不可用且未设置 SOULPET_MASTER_KEY），"
+                    "密钥将以明文写入 %s。若在意请设置环境变量 SOULPET_MASTER_KEY 后重启。",
+                    self._file_path,
+                )
             blob = json.dumps({"_plain": True, "items": items}).encode("utf-8")
         tmp = self._file_path.with_suffix(".tmp")
         tmp.write_bytes(blob)

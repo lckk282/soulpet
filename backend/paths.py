@@ -6,6 +6,7 @@
 环境变量：
   SOULPET_HOME  数据根目录（配置、数据库、日志、素材），默认等于仓库根目录
 """
+
 from __future__ import annotations
 
 import os

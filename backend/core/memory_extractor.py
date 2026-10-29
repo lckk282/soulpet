@@ -3,16 +3,13 @@
 默认走规则抽取（零成本、零延迟）；开启 LLM 抽取后（配置 memory_extract=llm）
 再调用模型做结构化抽取，失败自动回退规则。
 """
+
 from __future__ import annotations
 
 import re
 
-PREF_PAT = re.compile(
-    r"(我(?:很|挺|最|不|不太|特别)?(?:喜欢|讨厌|害怕|想|希望|习惯|需要))(.{1,30})"
-)
-FACT_PAT = re.compile(
-    r"(我(?:叫|是|住在|在|今年|刚|已经|的.{1,6}(?:叫|是)))(.{1,30})"
-)
+PREF_PAT = re.compile(r"(我(?:很|挺|最|不|不太|特别)?(?:喜欢|讨厌|害怕|想|希望|习惯|需要))(.{1,30})")
+FACT_PAT = re.compile(r"(我(?:叫|是|住在|在|今年|刚|已经|的.{1,6}(?:叫|是)))(.{1,30})")
 NEGatives = ("吗", "呢", "？", "?")
 # 以疑问词结尾的片段不是事实，只是提问，不能进记忆
 QWORDS = ("什么", "谁", "哪里", "哪儿", "多少", "怎么", "为什么", "哪天", "几点")
@@ -56,11 +53,7 @@ def rule_extract(user_text: str, reply: str = "") -> list[dict]:
             continue
         seen.add(it["content"])
         uniq.append(it)
-    uniq = [
-        a
-        for a in uniq
-        if not any(a["content"] != b["content"] and a["content"] in b["content"] for b in uniq)
-    ]
+    uniq = [a for a in uniq if not any(a["content"] != b["content"] and a["content"] in b["content"] for b in uniq)]
     return uniq[:3]
 
 

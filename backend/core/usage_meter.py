@@ -3,6 +3,7 @@
 费用 = tokens × pricing.yaml 中的单价（元/百万 tokens）。
 厂商流式返回可能不含 usage，此时按中文约 1.6 字符/token 估算，并记为 is_estimated=1。
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta

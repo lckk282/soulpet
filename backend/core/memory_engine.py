@@ -7,6 +7,7 @@ L3 摘要记忆：按天滚动压缩（summaries 逻辑在 api 层按需调用�
 检索打分 = 0.5*相关度 + 0.3*重要度 + 0.2*时间衰减
 向量检索为可选项（需在模型配置里开启 embedding），失败自动降级为全文检索。
 """
+
 from __future__ import annotations
 
 import json
@@ -25,6 +26,7 @@ from ..models import Memory
 
 # ── 写入 ────────────────────────────────────────────────────────
 
+
 def _jsonl_path(ts: datetime) -> Path:
     paths.ensure_dirs()
     return paths.MEMORY_DIR / f"events-{ts.strftime('%Y-%m')}.jsonl"
@@ -34,9 +36,7 @@ def _fts_upsert(memory_id: int, content: str) -> None:
     try:
         with sqlite3.connect(paths.DB_PATH) as con:
             con.execute("DELETE FROM memory_fts WHERE memory_id=?", (memory_id,))
-            con.execute(
-                "INSERT INTO memory_fts(memory_id, content) VALUES(?,?)", (memory_id, content)
-            )
+            con.execute("INSERT INTO memory_fts(memory_id, content) VALUES(?,?)", (memory_id, content))
     except Exception:
         pass
 
@@ -114,6 +114,7 @@ def _append_jsonl(pet_id: str, mid: int, type_: str, content: str, imp: float, e
 
 # ── 检索 ────────────────────────────────────────────────────────
 
+
 def _decay(days: float) -> float:
     return math.exp(-0.03 * days)
 
@@ -125,9 +126,13 @@ def search(pet_id: str, query: str, topk: int = 7) -> list[Memory]:
     candidates: dict[int, float] = {}
 
     with session() as s:
-        pinned = s.execute(
-            select(Memory).where(Memory.pet_id == pet_id, Memory.pinned.is_(True), Memory.archived.is_(False))
-        ).scalars().all()
+        pinned = (
+            s.execute(
+                select(Memory).where(Memory.pet_id == pet_id, Memory.pinned.is_(True), Memory.archived.is_(False))
+            )
+            .scalars()
+            .all()
+        )
         for m in pinned:
             candidates[m.id] = 1.0
 
@@ -143,18 +148,24 @@ def search(pet_id: str, query: str, topk: int = 7) -> list[Memory]:
                 rows = []
             hit_ids = [r[0] for r in rows]
             if hit_ids:
-                fts = s.execute(select(Memory).where(Memory.id.in_(hit_ids), Memory.archived.is_(False))).scalars().all()
+                fts = (
+                    s.execute(select(Memory).where(Memory.id.in_(hit_ids), Memory.archived.is_(False))).scalars().all()
+                )
                 for m in fts:
                     # bm25 越小越相关，映射到 0~1
                     raw = dict(rows).get(m.id, 0.0)
                     candidates[m.id] = max(candidates.get(m.id, 0.0), 1.0 / (1.0 + abs(raw)))
 
-        recent = s.execute(
-            select(Memory)
-            .where(Memory.pet_id == pet_id, Memory.archived.is_(False))
-            .order_by(Memory.created_at.desc())
-            .limit(20)
-        ).scalars().all()
+        recent = (
+            s.execute(
+                select(Memory)
+                .where(Memory.pet_id == pet_id, Memory.archived.is_(False))
+                .order_by(Memory.created_at.desc())
+                .limit(20)
+            )
+            .scalars()
+            .all()
+        )
         for m in recent:
             days = max(0.0, (now - m.created_at).total_seconds() / 86400)
             candidates.setdefault(m.id, 0.15 * _decay(days))
@@ -212,13 +223,9 @@ def stats(pet_id: str) -> dict:
     with session() as s:
         base = [Memory.pet_id == pet_id, Memory.archived.is_(False)]
         total = s.execute(select(func.count(Memory.id)).where(*base)).scalar() or 0
-        by_type = dict(
-            s.execute(select(Memory.type, func.count(Memory.id)).where(*base).group_by(Memory.type)).all()
-        )
+        by_type = dict(s.execute(select(Memory.type, func.count(Memory.id)).where(*base).group_by(Memory.type)).all())
         first = s.execute(select(Memory.created_at).where(*base).order_by(Memory.created_at)).first()
-        top = s.execute(
-            select(Memory.content).where(*base).order_by(Memory.importance.desc()).limit(3)
-        ).scalars().all()
+        top = s.execute(select(Memory.content).where(*base).order_by(Memory.importance.desc()).limit(3)).scalars().all()
     return {
         "total": int(total),
         "by_type": by_type,
@@ -228,6 +235,7 @@ def stats(pet_id: str) -> dict:
 
 
 # ── 编辑 ────────────────────────────────────────────────────────
+
 
 def update(mid: int, **fields) -> Memory | None:
     allowed = {"content", "type", "importance", "emotion", "pinned", "archived"}

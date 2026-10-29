@@ -3,6 +3,7 @@
 三种方案（napcat / official / lite）都实现 BridgeAdapter，
 上层业务只认 UnifiedMessage，换方案不改聊天逻辑。
 """
+
 from __future__ import annotations
 
 import time
@@ -16,7 +17,7 @@ from dataclasses import dataclass, field
 class UnifiedMessage:
     platform: str = "qq"
     scheme: str = "napcat"
-    scene: str = "private"          # private | group
+    scene: str = "private"  # private | group
     group_id: str | None = None
     user_id: str = ""
     msg_id: str = ""
@@ -49,6 +50,7 @@ class BridgeAdapter(ABC):
 
 
 # ── 风控闸门 ────────────────────────────────────────────────────
+
 
 class RateLimiter:
     """滑动窗口频控：窗口内条数超限即拒绝。"""
@@ -107,7 +109,7 @@ class AutonomyGuard:
         self.private_enabled = bool(policy.get("private_enabled", True))
         self.private_only_whitelist = bool(policy.get("private_only_whitelist", True))
         self.private_whitelist = {str(x) for x in policy.get("private_whitelist", [])}
-        self.group_limiter = RateLimiter(3, 1)      # 群：3 秒 1 条
+        self.group_limiter = RateLimiter(3, 1)  # 群：3 秒 1 条
         self.global_limiter = RateLimiter(3600, 200)  # 全局：1 小时 200 条
         self.breaker = CircuitBreaker()
 

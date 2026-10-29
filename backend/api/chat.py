@@ -1,4 +1,5 @@
 """聊天 API。POST /api/chat 返回 SSE 流（前端逐字渲染）。"""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
@@ -11,6 +12,13 @@ from ..models import Conversation, Message
 from ..schemas import ChatRequest
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+# SSE 响应头：关掉 nginx / 其他反代的缓冲，否则云服部署时打字机会卡成一坨
+SSE_HEADERS = {
+    "Cache-Control": "no-cache, no-transform",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",
+}
 
 
 def _require_pet() -> str:
@@ -36,7 +44,7 @@ def chat(req: ChatRequest):
             yield "data: " + _json_one({"error": str(e)}) + "\n\n"
         yield "data: " + _json_one({"done": True, "conv_id": conv_id}) + "\n\n"
 
-    return StreamingResponse(safe_gen(), media_type="text/event-stream")
+    return StreamingResponse(safe_gen(), media_type="text/event-stream", headers=SSE_HEADERS)
 
 
 def _json_one(obj: dict) -> str:
@@ -67,7 +75,12 @@ def list_conversations():
         return {
             "ok": True,
             "items": [
-                {"id": r.id, "title": r.title or "新对话", "channel": r.channel, "updated_at": r.updated_at.isoformat(timespec="seconds")}
+                {
+                    "id": r.id,
+                    "title": r.title or "新对话",
+                    "channel": r.channel,
+                    "updated_at": r.updated_at.isoformat(timespec="seconds"),
+                }
                 for r in rows
             ],
         }
@@ -77,7 +90,12 @@ def list_conversations():
 def delete_conv(conv_id: int):
     from sqlalchemy import delete
 
+    pet_id = _require_pet()
     with session() as s:
+        conv = s.get(Conversation, conv_id)
+        # 只允许删自己的会话，避免误删别的宠物 / 越权传 id
+        if conv is None or conv.pet_id != pet_id:
+            raise HTTPException(404, "会话不存在")
         s.execute(delete(Message).where(Message.conv_id == conv_id))
         s.execute(delete(Conversation).where(Conversation.id == conv_id))
     return {"ok": True}

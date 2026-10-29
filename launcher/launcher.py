@@ -5,6 +5,7 @@
 用法：
     python launcher/launcher.py [--port 8787] [--no-browser] [--host 127.0.0.1]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -77,10 +78,11 @@ def main() -> int:
     cfg = g()
     want = args.port or cfg.server.port or 8787
     port = pick_port(args.host, want)
+    if port != want:
+        print(f"[launcher] 端口 {want} 被占用，改用 {port}")
     if port != cfg.server.port:
         cfg.server.port = port
         set_("global", cfg)
-        print(f"[launcher] 端口 {want} 被占用，改用 {port}")
 
     url = f"http://{args.host}:{port}"
     initialized = bool(cfg.wizard.completed)

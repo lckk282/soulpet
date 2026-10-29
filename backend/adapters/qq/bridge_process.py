@@ -6,6 +6,7 @@
 启动：python -m backend.adapters.qq.bridge_process
 依赖：websockets + httpx（pip install -r requirements-qq.txt）
 """
+
 from __future__ import annotations
 
 import asyncio

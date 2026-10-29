@@ -3,6 +3,7 @@
 只依赖 httpx。所有"OpenAI 兼容"厂商（含自建 vLLM / Ollama / 聚合网关）都能直接用。
 错误统一分类为：auth / rate / timeout / net / bad，前端可翻译成人话。
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -106,7 +107,12 @@ class OpenAICompatLLM:
                 real = (data.get("model") or self.cfg.model) if isinstance(data, dict) else self.cfg.model
             except Exception:
                 real = self.cfg.model
-            return {"ok": True, "base_url": base, "model": str(real), "latency_ms": int(r.elapsed.total_seconds() * 1000)}
+            return {
+                "ok": True,
+                "base_url": base,
+                "model": str(real),
+                "latency_ms": int(r.elapsed.total_seconds() * 1000),
+            }
 
         raise last_err or LLMError("net", "无法连接")
 
@@ -130,9 +136,7 @@ class OpenAICompatLLM:
             with self._client.stream("POST", url, headers=self._headers(), json=payload) as r:
                 if r.status_code >= 400:
                     body = r.read().decode("utf-8", "ignore")[:200]
-                    kind = "auth" if r.status_code in (401, 403) else (
-                        "rate" if r.status_code == 429 else "bad"
-                    )
+                    kind = "auth" if r.status_code in (401, 403) else ("rate" if r.status_code == 429 else "bad")
                     raise LLMError(kind, body, r.status_code)
                 for line in r.iter_lines():
                     if not line:

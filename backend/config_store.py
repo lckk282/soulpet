@@ -6,6 +6,7 @@
   · 缺文件用默认值生成，读坏文件回退默认 + 备份坏文件（不让用户卡死）
   · 密钥永不进入本文件，只存 keyring:// 引用
 """
+
 from __future__ import annotations
 
 import shutil

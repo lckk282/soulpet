@@ -2,6 +2,7 @@
 
 链路：取上下文 → 组 Prompt → 调 LLM（流式）→ 落库 → 抽记忆 → 记用量 → 广播事件
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterator

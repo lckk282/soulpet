@@ -3,6 +3,7 @@
 桌宠 / 网页订阅同一事件流，用于情绪、动作、提醒、费用告警等。
 线程安全：任何线程都可以 publish，订阅者在 asyncio 循环里消费。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -56,6 +57,7 @@ def to_sse(ev: dict) -> str:
 
 
 # ── 主动消息频率闸门（日上限 + 静默时段 + 连续未读降频） ────────────
+
 
 def proactive_allowed(max_per_day: int, quiet_hours: list[str]) -> bool:
     now = datetime_now()

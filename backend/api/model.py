@@ -1,4 +1,5 @@
 """模型配置 API：注册表、连通测试、保存配置与价格。"""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
