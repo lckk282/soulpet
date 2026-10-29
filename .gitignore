@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.ruff_cache/
+.pytest_cache/
+
+# Node
+node_modules/
+frontend/.vite/
+# 注意：frontend/dist 故意入库 —— 让用户 clone 下来双击 start 就能用，无需 npm
+.cache/
+.pytest_cache/
+.ruff_cache/
+
+# 用户数据（绝不入库：含记忆、数据库、密钥）
+data/
+config/*.yaml
+config/*.bak
+config/*.broken
+config/*.tmp
+
+# 备份
+*.zip
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 环境
+.env
+.env.*
+!.env.example

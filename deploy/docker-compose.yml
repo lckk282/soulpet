@@ -1,0 +1,38 @@
+services:
+  soulpet:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: soulpet:latest
+    container_name: soulpet
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SOULPET_HOME: /app/data
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+    ports:
+      # 只监听回环，由 nginx 对外；不要把 8787 直接暴露到公网
+      - "127.0.0.1:8787:8787"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8787/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: soulpet-nginx
+    restart: unless-stopped
+    depends_on:
+      - soulpet
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/soulpet.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./certbot/www:/var/www/certbot:ro
+    command: >
+      /bin/sh -c "while :; do sleep 6h; nginx -s reload; done & nginx -g 'daemon off;'"

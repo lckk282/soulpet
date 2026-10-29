@@ -1,0 +1,13 @@
+# ── 核心依赖（必装，体积约 40MB）──────────────────────────────
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+sqlalchemy>=2.0,<3.0
+pydantic>=2.7,<3.0
+pyyaml>=6.0,<7.0
+httpx>=0.27,<1.0
+apscheduler>=3.10,<4.0
+keyring>=25.0
+python-multipart>=0.0.9
+
+# ── 可选：Linux 无图形环境时的加密落盘（Windows/macOS 用系统钥匙串）──
+cryptography>=42.0; sys_platform == "linux"

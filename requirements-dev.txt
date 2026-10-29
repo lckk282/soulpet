@@ -1,0 +1,7 @@
+# 开发/测试
+pytest>=8.0
+ruff>=0.6
+
+# QQ 连接器（可选模块，按需安装）
+# pip install -r requirements-qq.txt
+websockets>=12.0
