@@ -35,3 +35,6 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# UI 测试截图
+shots/

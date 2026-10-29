@@ -66,6 +66,9 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
 button.primary:hover:not(:disabled) { background: #5a63d8; color: #fff; }
 button.ghost { background: transparent; }
+/* .ghost 与 .primary 同用时，.ghost 的透明背景会盖掉品牌色，白字就看不见了 */
+button.ghost.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+button.ghost.primary:hover:not(:disabled) { background: #5a63d8; color: #fff; }
 button.danger { color: var(--danger); border-color: #f0c8c2; }
 button.danger:hover { background: var(--danger-soft); }
 
