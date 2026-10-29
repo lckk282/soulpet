@@ -41,6 +41,12 @@ onMounted(() => {
   }
 })
 
+// 切步骤时把视口拉回顶部，否则上一步滚到一半的位置会被带过来，
+// 新页面一进来就顶着标题被 sticky 顶栏压住。
+watch(() => w.step, () => {
+  window.scrollTo({ top: 0, behavior: 'auto' })
+})
+
 // 切到云端部署时自动关闭桌宠，回到本地不强制
 watch(() => w.draft.deploy.mode, (mode) => {
   if (mode === 'cloud' && w.draft.modules.desktop_pet) {
@@ -107,9 +113,10 @@ const onNext = () => {
         </div>
 
         <div v-if="w.step !== 'confirm'" class="wizard__actions">
-          <button :disabled="w.index === 0" @click="w.prev()">
+          <button v-if="w.index > 0" @click="w.prev()">
             <AppIcon name="arrowLeft" :size="15" style="vertical-align:-3px;margin-right:4px" />上一步
           </button>
+          <span v-else class="small muted">这一步是起点，填好就能继续</span>
           <button class="primary" @click="onNext">
             下一步<AppIcon name="arrowRight" :size="15" style="vertical-align:-3px;margin-left:5px" />
           </button>

@@ -24,6 +24,9 @@ const STATE_CLASS: Record<string, string> = { ACTIVE: 'ok', IDLE: 'gray', SAVING
 const MOD_LABEL: Record<string, string> = { qq: 'QQ 连接器', desktop_pet: '桌面桌宠', web_chat: '网页聊天' }
 const MOD_ICON: Record<string, string> = { qq: 'robot', desktop_pet: 'cat', web_chat: 'chat' }
 const STATUS_CLASS: Record<string, string> = { running: 'ok', starting: 'warn', waiting: 'warn', error: 'danger', stopped: 'gray', disabled: 'gray' }
+const STATUS_LABEL: Record<string, string> = {
+  running: '运行中', starting: '启动中', waiting: '等待中', error: '出错', stopped: '已停止', disabled: '未启用',
+}
 </script>
 
 <template>
@@ -41,7 +44,10 @@ const STATUS_CLASS: Record<string, string> = { running: 'ok', starting: 'warn', 
           <span class="chip" :class="STATE_CLASS[st.state] || 'gray'"><span class="dot" /> 宠物：{{ STATE_LABEL[st.state] || st.state }}</span>
           <span class="chip" :class="st.scheduler_running ? 'ok' : 'warn'">调度器 {{ st.scheduler_running ? '运行中' : '未运行' }}</span>
           <span class="chip gray">端口 {{ st.server_port }}</span>
-          <span class="chip gray"><AppIcon name="lock" :size="11" /> {{ st.secret_backend === 'keyring' ? '系统钥匙串' : '加密文件' }}</span>
+          <span class="chip" :class="st.secret_plaintext ? 'warn' : 'gray'">
+            <AppIcon name="lock" :size="11" />
+            {{ st.secret_backend === 'keyring' ? '系统钥匙串' : (st.secret_plaintext ? '明文文件（建议设主密码）' : '加密文件') }}
+          </span>
         </div>
       </div>
 
@@ -51,7 +57,7 @@ const STATUS_CLASS: Record<string, string> = { running: 'ok', starting: 'warn', 
             <span class="tile__label" style="display:inline-flex;align-items:center;gap:6px">
               <AppIcon :name="MOD_ICON[name] || 'plug'" :size="15" style="color:var(--brand)" /> {{ MOD_LABEL[name] || name }}
             </span>
-            <span class="chip" :class="STATUS_CLASS[m.status]">{{ m.status }}</span>
+            <span class="chip" :class="STATUS_CLASS[m.status]">{{ STATUS_LABEL[m.status] || m.status }}</span>
           </div>
           <p class="small muted" style="margin:2px 0 8px;min-height:32px">{{ m.detail }}</p>
           <p v-if="m.last_error" class="small" style="color:var(--danger);margin:0 0 8px">{{ m.last_error }}</p>

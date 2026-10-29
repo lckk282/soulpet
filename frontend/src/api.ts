@@ -10,6 +10,10 @@ async function req<T = any>(path: string, init?: RequestInit): Promise<T> {
     try {
       const d = await res.json()
       msg = typeof d?.detail === 'string' ? d.detail : (d?.detail?.errors?.join('；') || msg)
+      // 口令没收下：别让用户盯着 "401" 发呆
+      if (res.status === 401 && d?.need_token) {
+        msg = '这是你的私有服务，需要访问口令。在地址栏后面加上 ?token=你的口令 登录一次即可。'
+      }
     } catch (_) { /* 保持默认 */ }
     throw new Error(msg)
   }

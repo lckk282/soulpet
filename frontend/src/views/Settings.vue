@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import AppIcon from '../components/AppIcon.vue'
 
@@ -16,12 +16,23 @@ const errMsg = ref('')
 const packs = ref<any[]>([])
 const uploading = ref(false)
 const backend = ref('')
+const plaintext = ref(false)
+
+// 没有钥匙串又没有主密码时，文件后端只能存明文 —— 不能骗用户说「已加密」
+const backendLabel = computed(() => {
+  if (backend.value === 'keyring') return '系统钥匙串'
+  return plaintext.value ? '本地文件（明文，建议设置主密码）' : '加密文件'
+})
 
 onMounted(async () => {
   try { model.value = (await api.get('/model')).config } catch (_) { /* 忽略 */ }
   try { pet.value = (await api.get('/pet')).profile } catch (_) { /* 忽略 */ }
   try { usage.value = (await api.get('/status/usage')).data } catch (_) { /* 忽略 */ }
-  try { backend.value = (await api.get('/status')).secret_backend } catch (_) { /* 忽略 */ }
+  try {
+    const st = await api.get('/status')
+    backend.value = st.secret_backend
+    plaintext.value = !!st.secret_plaintext
+  } catch (_) { /* 忽略 */ }
   try { packs.value = (await api.get('/pet/packs')).items } catch (_) { /* 忽略 */ }
 })
 
@@ -33,7 +44,7 @@ const saveModel = async () => {
       api_key: model.value.api_key || '', pricing: model.value.pricing, budget: model.value.budget,
       advanced: model.value.advanced,
     })
-    okMsg.value = '已保存' + (model.value.api_key ? '，密钥已写入' + (backend.value === 'keyring' ? '系统钥匙串' : '加密文件') : '')
+    okMsg.value = '已保存' + (model.value.api_key ? '，密钥已写入' + backendLabel.value : '')
     model.value.api_key = ''
     model.value = (await api.get('/model')).config
   } catch (e: any) { errMsg.value = e.message }
@@ -75,9 +86,14 @@ const onFile = async (e: any) => {
 }
 
 const reset = async () => {
-  if (!confirm('重置会清空全部配置与记忆，回到首次启动状态。确定？')) return
-  await api.post('/wizard/reset')
-  location.href = '/'
+  if (!confirm('这会删掉全部配置、记忆、聊天记录和已保存的密钥，回到第一次启动的状态。\n\n删之前会自动打一个备份包放在 data/backups/，需要时还能捞回来。\n\n确定继续？')) return
+  try {
+    const r = await api.post('/wizard/reset')
+    // 口令 Cookie 也要清掉，否则下次打开会以为还登录着
+    document.cookie = 'soulpet_token=; Max-Age=0; path=/'
+    alert(r.message || '已恢复出厂，正在跳回向导…')
+    location.href = '/'
+  } catch (e: any) { errMsg.value = e.message }
 }
 const backup = async () => {
   try { const r = await api.post('/status/backup'); okMsg.value = '已备份：' + r.path }
@@ -104,7 +120,7 @@ const backup = async () => {
       </div>
       <label class="field"><span>API 地址</span><input v-model="model.base_url" type="text" /></label>
       <label class="field">
-        <span>API Key（当前{{ model.has_api_key ? '已保存' : '未设置' }} · 存放：{{ backend === 'keyring' ? '系统钥匙串' : '加密文件' }}）</span>
+        <span>API Key（当前{{ model.has_api_key ? '已保存' : '未设置' }} · 存放：{{ backendLabel }}）</span>
         <input v-model="model.api_key" type="password" placeholder="留空表示不修改" autocomplete="off" />
       </label>
       <div class="row wrap" style="gap:8px">
@@ -153,9 +169,11 @@ const backup = async () => {
       <h2 style="display:flex;align-items:center;gap:8px"><AppIcon name="shield" :size="18" style="color:var(--ok)" /> 备份与重置</h2>
       <div class="row wrap" style="gap:8px">
         <button @click="backup"><AppIcon name="refresh" :size="14" style="vertical-align:-2px" /> 立即备份</button>
-        <button class="danger" @click="reset">恢复出厂（清空配置与记忆）</button>
+        <button class="danger" @click="reset">恢复出厂（清空配置、记忆与密钥）</button>
       </div>
-      <p class="small muted" style="margin-top:8px">备份包含 config/、数据库与记忆，保存在 data/backups/。</p>
+      <p class="small muted" style="margin-top:8px">
+        备份包含 config/、数据库与记忆，保存在 data/backups/。恢复出厂前会自动先备份一份。
+      </p>
     </div>
   </div>
 </template>

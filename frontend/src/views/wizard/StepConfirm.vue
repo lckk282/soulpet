@@ -11,16 +11,28 @@ const ROLE_LABEL: Record<string, string> = {
   maid: '女仆', silent_npc: '沉默NPC', buddy: '活泼搭子', cold_assistant: '清冷助手',
   tsundere_cat: '毒舌猫系', senior: '温柔学长学姐',
 }
+const PROVIDER_LABEL: Record<string, string> = {
+  zhipu: '智谱 GLM', qwen: '通义千问', deepseek: 'DeepSeek', openai: 'OpenAI',
+  ollama: '本地 Ollama', custom: '自定义', mock: '离线体验',
+}
+const identityText = computed(() => {
+  const d = w.draft
+  const roles = d.identity.role_presets.map((r) => ROLE_LABEL[r] || r).join('、')
+  const parts = [roles, d.identity.role_custom].filter(Boolean)
+  if (parts.length) return parts.join(' + ')
+  // 只写了简介也算有身份，别显示成「无」
+  return d.identity.bio ? `「${d.identity.bio}」` : '未设定（默认性格）'
+})
 const rows = computed(() => {
   const d = w.draft
   const s = d.personality.sliders
   return [
     { k: '名字', icon: 'cat', v: d.identity.name || '（未填）', step: 'identity' },
-    { k: '身份', icon: 'sparkle', v: (d.identity.role_presets.map((r) => ROLE_LABEL[r] || r).join('、') || '无') + (d.identity.role_custom ? ` + ${d.identity.role_custom}` : ''), step: 'identity' },
+    { k: '身份', icon: 'sparkle', v: identityText.value, step: 'identity' },
     { k: '性格', icon: 'heart', v: `粘人${s.clinginess} 话痨${s.verbosity} 吐槽${s.snark} 元气${s.valence} 记性${s.retention}` + (d.personality.tags.length ? ` · ${d.personality.tags.join('/')}` : ''), step: 'personality' },
     { k: '作息', icon: 'clock', v: `${d.personality.schedule.active_start} 起活跃 ${d.personality.schedule.active_hours}h · 待机${d.personality.schedule.idle_can_reply ? '可回复' : '不回复'}`, step: 'personality' },
     { k: '部署', icon: 'server', v: d.deploy.mode === 'local' ? '本地部署（这台电脑）' : `云服务器 ${d.deploy.cloud?.host || ''}`, step: 'deploy' },
-    { k: '模型', icon: 'bolt', v: `${d.model.provider} · ${d.model.model || '未填'}${d.model.api_key ? '' : '（离线体验模式）'}`, step: 'model' },
+    { k: '模型', icon: 'bolt', v: `${PROVIDER_LABEL[d.model.provider] || d.model.provider} · ${d.model.model || '未填'}${d.model.api_key ? '' : '（离线体验模式）'}`, step: 'model' },
     { k: '预算', icon: 'wallet', v: `日提醒 ¥${d.model.budget.daily_warn_cny} / 月上限 ¥${d.model.budget.monthly_cap_cny}`, step: 'model' },
     { k: '模块', icon: 'plug', v: `QQ：${d.modules.qq ? d.qq.scheme : '关闭'}　桌宠：${d.modules.desktop_pet ? '开启' : '关闭'}`, step: 'modules' },
   ]

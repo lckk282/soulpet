@@ -75,6 +75,8 @@ button {
   color: var(--text);
   padding: 9px 16px;
   cursor: pointer;
+  /* 中文按钮一旦被 flex 挤就会被拆成「搜/索」两行，必须禁止换行 */
+  white-space: nowrap;
   transition: transform 0.12s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
 }
 button:hover:not(:disabled) { border-color: #e0b79f; color: var(--brand); }
@@ -183,7 +185,7 @@ th { color: var(--muted); font-weight: 600; }
   background: linear-gradient(135deg, var(--brand), var(--brand-2));
   color: #fff; box-shadow: 0 5px 12px rgba(200, 86, 47, 0.3);
 }
-.nav { display: flex; gap: 4px; flex-wrap: wrap; }
+.nav { display: flex; gap: 4px; flex-wrap: nowrap; }
 .nav__item {
   display: inline-flex; align-items: center; gap: 6px;
   border: none; background: transparent; color: var(--muted);
@@ -286,7 +288,9 @@ th { color: var(--muted); font-weight: 600; }
 .chat-wrap { max-width: 860px; margin: 0 auto; padding: 20px 16px 28px; }
 .chat-card { display: flex; flex-direction: column; height: min(74dvh, 720px); padding: 0; overflow: hidden; }
 .chat-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 18px; border-bottom: 1px solid var(--line); }
-.chat-head__who { display: flex; align-items: center; gap: 10px; }
+.chat-head__who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.chat-head__who strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.chat-head__who .chip { flex-shrink: 0; white-space: nowrap; }
 .avatar {
   width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px;
   background: linear-gradient(135deg, #ffe9d5, #ffd7b3); color: var(--brand-2);
@@ -330,6 +334,8 @@ pre.log {
   .feature-grid { grid-template-columns: 1fr; }
   .nav__item span { display: none; }
   .nav__item { padding: 8px; }
+  /* 顶栏 4 个入口在小屏必须待在一行，否则会把「运行状态」挤到第二行 */
+  .topbar__inner { gap: 8px; padding: 9px 12px; }
 }
 
 @media (max-width: 560px) {
@@ -342,4 +348,20 @@ pre.log {
   .steps__item.active .steps__label { display: inline; }
   .msg { max-width: 92%; }
   h1 { font-size: 21px; }
+  .brand > .chip { display: none; }   /* 「本地优先」标签让位给导航 */
+  .brand { font-size: 15.5px; gap: 7px; }
+  .brand__mark { width: 30px; height: 30px; border-radius: 9px; }
+  .chat-head { padding: 11px 13px; }
+  .chat-head .row { display: none; }  /* 记忆 / 设置顶栏已有入口，小屏不再重复 */
+  .chat-body { padding: 14px; }
+  /* 小屏上小灵别占太多竖向空间，正文才是重点 */
+  .wizard__guide .guide__pet { width: 78px; }
+  .wizard__guide .guide__bubble { padding: 9px 11px; }
+  .wizard__guide .guide__text { font-size: 12.5px; line-height: 1.5; }
+  .wizard__guide .guide__badge { font-size: 10.5px; }
+  .wizard__guide .guide__replay-tip { display: none; }
+}
+
+@media (max-width: 380px) {
+  .brand > span:not(.brand__mark) { display: none; }  /* 极窄屏只留图标 */
 }
