@@ -303,7 +303,7 @@ def _walk(page, base: str, c: Checker, shot) -> None:
     print("\n[10b] 二次打开首页直接回聊天页")
     page.goto(base, wait_until="networkidle")
     page.wait_for_timeout(900)
-    c.ok("落地 /chat 而不是空白向导", "/chat" in page.url, page.url)
+    c.ok("落地 /chat 而不是空白向导", "/chat" in page.evaluate("location.pathname"), page.evaluate("location.href"))
     c.ok("聊天记录还在", "你好呀" in page.inner_text("body"))
 
     print("\n[10c] 设置页可重新进入向导")
@@ -313,9 +313,16 @@ def _walk(page, base: str, c: Checker, shot) -> None:
     c.ok("有重新运行向导入口", redo.count() == 1, f"count={redo.count()}")
     redo.first.click()
     page.wait_for_timeout(1500)
-    c.ok("URL 带上 edit=1", "edit=1" in page.url, page.url)
-    c.ok("重进向导不再被踢回聊天", "创造向导" in page.inner_text("body"), page.url)
+    # 注意：pushState 之后 page.url 有时会滞后，用 location.href 读真实地址
+    c.ok("URL 带上 edit=1", "edit=1" in page.evaluate("location.search"), page.evaluate("location.href"))
+    c.ok("重进向导不再被踢回聊天", "创造向导" in page.inner_text("body"), page.evaluate("location.href"))
     c.ok("提示会覆盖现有配置", "覆盖" in page.inner_text("body"))
+
+    print("\n[10d] 点 Logo 走客户端跳转（这条曾经挂住不动）")
+    page.locator(".brand").click()
+    page.wait_for_timeout(1500)
+    c.ok("已有宠物时 Logo → 聊天页", "/chat" in page.evaluate("location.pathname"), page.evaluate("location.href"))
+    c.ok("切过去真的渲染了聊天页", page.locator(".chat-card").count() == 1)
 
     print("\n[11] 记忆 / 状态 / 设置页可打开")
     for path, marker in (("/memory", "记忆"), ("/status", "状态"), ("/settings", "设置")):

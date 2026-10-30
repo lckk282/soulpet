@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useWizard, type StepId } from '../stores/wizard'
 import { api } from '../api'
 import WizardGuide from '../components/WizardGuide.vue'
@@ -17,7 +17,6 @@ import StepConfirm from './wizard/StepConfirm.vue'
 
 const w = useWizard()
 const route = useRoute()
-const router = useRouter()
 
 const MAP: Record<StepId, any> = {
   welcome: StepWelcome, identity: StepIdentity, personality: StepPersonality,
@@ -44,24 +43,12 @@ onMounted(async () => {
     w.draft.modules.desktop_pet = false
   }
 
-  // 已经捏好了、也没留下未完成的草稿时，直接去聊天页。
-  // 否则二次启动会被丢回一个空白向导，用户会以为"之前做的没了"。
-  // 想重新捏一只：带 ?edit=1 进来（设置页有入口）。
-  const editing = route.query.edit === '1'
-  const hasDraft = !!localStorage.getItem('soulpet.wizard.draft')
-  if (!editing && !s && !hasDraft) {
-    try {
-      const p = await api.get('/pet')
-      if (p.profile?.pet?.id) { router.replace('/chat'); return }
-    } catch (_) { /* 后端没起来就老老实实留在向导 */ }
-  }
-  // 已经捏过宠物又主动回来重捏的，给个明确提示，别让人误以为要重来一遍
-  if (editing || hasDraft) {
-    try {
-      const p = await api.get('/pet')
-      if (p.profile?.pet?.id) existingPet.value = p.profile.pet.name || '已有一只宠物'
-    } catch (_) { /* 忽略 */ }
-  }
+  // 「已经有宠物还回来重捏」时给个明确提示，别让人以为要重来一遍、或者以为配置丢了。
+  // （能不能进来由 router.ts 的守卫决定：没草稿又没 ?edit=1 会直接被送去聊天页）
+  try {
+    const p = await api.get('/pet')
+    if (p.profile?.pet?.id) existingPet.value = p.profile.pet.name || '已有一只宠物'
+  } catch (_) { /* 忽略 */ }
 })
 
 // 切步骤时把视口拉回顶部，否则上一步滚到一半的位置会被带过来，

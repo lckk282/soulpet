@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { api } from '../api'
+import { invalidatePetCache } from '../petCache'
 
 export type StepId =
   | 'welcome' | 'identity' | 'personality' | 'deploy' | 'model'
@@ -195,6 +196,7 @@ export const useWizard = defineStore('wizard', {
         this.steps = r.steps || []
         this.warnings = r.warnings || []
         localStorage.removeItem(KEY)
+        invalidatePetCache() // 刚捏好，下次进 / 应该直接落聊天页
         return r
       } catch (e: any) {
         this.errors = [e.message || String(e)]

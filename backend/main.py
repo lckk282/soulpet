@@ -29,7 +29,7 @@ mimetypes.add_type("text/css", ".css")
 mimetypes.add_type("application/json", ".json")
 mimetypes.add_type("image/svg+xml", ".svg")
 
-VERSION = "0.1.4"
+VERSION = "0.1.5"
 
 
 def setup_logging(level: str = "INFO") -> None:
