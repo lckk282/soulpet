@@ -2,6 +2,12 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.1.6] - 2026-10-30
+
+- **首次装依赖被打断，之后永远起不来**（这条最要命）：`start.bat` 原来只判断 `.venv` 目录在不在。首次 `pip install` 如果被 Ctrl+C、断网、关窗口打断，`.venv` 会留个半成品，之后每次运行都直接抛 `ModuleNotFoundError: No module named 'yaml'` 崩掉，用户完全不知道该怎么办。
+  现在启动脚本会**真的去 import 一遍核心包**（fastapi / uvicorn / yaml / httpx / sqlalchemy），缺了就自动补装，并提示「依赖不完整，正在补装」。`start.sh` 同步修好。
+- `start.bat` 注释改成 ASCII 并统一 CRLF：中文写在 `REM` 里会被 cmd.exe 按字节解析错，出现 `'遍核心包…' is not recognized` 这种鬼话。
+
 ## [0.1.5] - 2026-10-30
 
 修一个 0.1.4 引入的导航 bug。
