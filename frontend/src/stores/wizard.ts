@@ -146,8 +146,13 @@ export const useWizard = defineStore('wizard', {
           if (!host) errs.push('云服务器要填一下主机 IP 或域名哦')
         }
       } else if (this.step === 'model') {
-        if (!d.model.model.trim()) errs.push('请先选一个服务商，或点「离线体验」')
-        if (!/^https?:\/\//.test(d.model.base_url)) errs.push('API 地址要以 http(s):// 开头哦')
+        // 没选服务商时只报一条：否则「请先选服务商」+「API 地址格式不对」
+        // 会同时糊在用户脸上，而 API 地址他根本还没碰过。
+        if (!d.model.model.trim()) {
+          errs.push('先选一个服务商；没有 API Key 就点上面那块「用离线体验」')
+        } else if (!/^https?:\/\//.test(d.model.base_url)) {
+          errs.push('API 地址要以 http:// 或 https:// 开头')
+        }
       } else if (this.step === 'qq') {
         if (!d.qq.risk_accepted) errs.push('请先确认所选方案的风险提示')
         if (d.qq.scheme === 'napcat' && !/^wss?:\/\//.test(d.qq.ws_url)) {

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useWizard, type StepId } from '../stores/wizard'
+import { api } from '../api'
 import WizardGuide from '../components/WizardGuide.vue'
 import AppIcon from '../components/AppIcon.vue'
 import StepWelcome from './wizard/StepWelcome.vue'
@@ -30,7 +31,10 @@ const LABEL: Record<StepId, string> = {
 
 const progress = computed(() => Math.round(((w.index + 1) / w.flow.length) * 100))
 
-onMounted(() => {
+// 已经有宠物时（主动 ?edit=1 回来重捏）用来提示"重来会覆盖现有配置"
+const existingPet = ref('')
+
+onMounted(async () => {
   w.restore()
   const s = route.params.step as StepId
   if (s && w.flow.includes(s)) w.step = s
@@ -38,6 +42,25 @@ onMounted(() => {
   // 云端部署没有画面，桌宠功能需关闭（防止开出无法使用的功能）
   if (w.draft.deploy.mode === 'cloud' && w.draft.modules.desktop_pet) {
     w.draft.modules.desktop_pet = false
+  }
+
+  // 已经捏好了、也没留下未完成的草稿时，直接去聊天页。
+  // 否则二次启动会被丢回一个空白向导，用户会以为"之前做的没了"。
+  // 想重新捏一只：带 ?edit=1 进来（设置页有入口）。
+  const editing = route.query.edit === '1'
+  const hasDraft = !!localStorage.getItem('soulpet.wizard.draft')
+  if (!editing && !s && !hasDraft) {
+    try {
+      const p = await api.get('/pet')
+      if (p.profile?.pet?.id) { router.replace('/chat'); return }
+    } catch (_) { /* 后端没起来就老老实实留在向导 */ }
+  }
+  // 已经捏过宠物又主动回来重捏的，给个明确提示，别让人误以为要重来一遍
+  if (editing || hasDraft) {
+    try {
+      const p = await api.get('/pet')
+      if (p.profile?.pet?.id) existingPet.value = p.profile.pet.name || '已有一只宠物'
+    } catch (_) { /* 忽略 */ }
   }
 })
 
@@ -97,6 +120,14 @@ const onNext = () => {
         </button>
       </template>
     </nav>
+
+    <div v-if="existingPet" class="banner warn" style="margin-bottom:14px">
+      <AppIcon name="alert" :size="18" />
+      <div>
+        你已经有一只叫「{{ existingPet }}」的宠物了。走完这个向导会<strong>覆盖它的配置</strong>（聊天记录和记忆会保留）。
+        <button class="ghost small" style="margin-left:8px" @click="$router.push('/chat')">先去聊天</button>
+      </div>
+    </div>
 
     <div v-if="w.errors.length" class="banner danger inline-error" style="margin-bottom:14px">
       <AppIcon name="alert" :size="18" />

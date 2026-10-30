@@ -16,9 +16,12 @@ onMounted(async () => {
 const applyPreset = (id: string) => {
   const p = providers.value.find((x) => x.id === id)
   if (!p) return
+  // 从离线模式切到真服务商时，必须换掉 mock 那个模型名，
+  // 否则会把 "mock" 当模型名发给真的接口，然后 404 / 400 一脸懵。
+  const fromMock = w.draft.model.provider === 'mock' || w.draft.model.model === 'mock'
   w.draft.model.provider = id
   w.draft.model.base_url = p.base_url
-  if (!w.draft.model.model) w.draft.model.model = p.model
+  if (fromMock || !w.draft.model.model) w.draft.model.model = p.model
   w.errors = []
 }
 const useMock = () => {
@@ -67,10 +70,19 @@ const estimated = computed(() => {
       <div class="row wrap" style="gap:7px">
         <span v-for="p in providers" :key="p.id" class="chip" :class="{ gray: w.draft.model.provider !== p.id }"
               style="cursor:pointer;padding:7px 13px;font-size:13px" @click="applyPreset(p.id)">{{ p.label }}</span>
-        <span class="chip" :class="{ gray: w.draft.model.provider !== 'mock' }" style="cursor:pointer;padding:7px 13px;font-size:13px" @click="useMock">
-          <AppIcon name="sparkle" :size="13" /> 先不填，离线体验
-        </span>
       </div>
+    </div>
+
+    <!-- 没有 Key 是最常见的起步状态，别把它藏在一排药丸里 -->
+    <div class="offline-box" :class="{ on: w.draft.model.provider === 'mock' }">
+      <div class="offline-box__text">
+        <strong>还没有 API Key？先用离线体验模式</strong>
+        <p class="small muted">内置模拟回复，不联网、不花钱，能把向导和聊天全流程跑通。之后在「设置 → 大模型」补上 Key 就换成真模型。</p>
+      </div>
+      <button :class="w.draft.model.provider === 'mock' ? 'primary' : 'ghost'" @click="useMock">
+        <AppIcon name="sparkle" :size="14" style="vertical-align:-2px;margin-right:4px" />
+        {{ w.draft.model.provider === 'mock' ? '已选离线体验' : '用离线体验' }}
+      </button>
     </div>
 
     <div class="row">
@@ -122,3 +134,23 @@ const estimated = computed(() => {
     </label>
   </div>
 </template>
+
+<style scoped>
+.offline-box {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin: 4px 0 18px; padding: 13px 15px;
+  border: 1.5px dashed var(--line, #efe7dc); border-radius: 14px;
+  background: var(--bg-2, #fdfaf5);
+  transition: border-color 0.18s, background 0.18s;
+}
+.offline-box.on {
+  border-style: solid; border-color: var(--brand); background: var(--brand-tint);
+}
+.offline-box__text { flex: 1 1 260px; min-width: 200px; }
+.offline-box__text strong { font-size: 14px; }
+.offline-box__text p { margin: 4px 0 0; line-height: 1.55; }
+@media (max-width: 560px) {
+  .offline-box { flex-direction: column; align-items: stretch; }
+  .offline-box button { width: 100%; }
+}
+</style>

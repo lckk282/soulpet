@@ -12,13 +12,18 @@ const convId = ref<number | null>(null)
 const busy = ref(false)
 const petName = ref('宠物')
 const box = ref<HTMLElement | null>(null)
+// 还没捏宠物：后端会返回 409，此时不该给一个能打字却发不出去的输入框
+const needPet = ref(false)
 
 const scroll = async () => { await nextTick(); if (box.value) box.value.scrollTop = box.value.scrollHeight }
+
+const goWizard = () => { window.location.href = '/?edit=1' }
 
 onMounted(async () => {
   try {
     const p = await api.get('/pet')
     petName.value = p.profile?.pet?.name || '宠物'
+    if (!p.profile?.pet?.id) { needPet.value = true; return }
     const h = await api.get('/chat/history')
     convId.value = h.conv_id
     msgs.value = h.messages || []
@@ -59,11 +64,18 @@ const send = async () => {
   <div class="chat-wrap">
     <div class="page-head">
       <span class="page-head__eyebrow">你的私人伙伴</span>
-      <h1>和 {{ petName }} 聊聊天</h1>
-      <p>说的话会按你设定的性格回应，重要的事会慢慢记进它的小本本。</p>
+      <h1>{{ needPet ? '还没有宠物' : '和 ' + petName + ' 聊聊天' }}</h1>
+      <p>{{ needPet ? '先去创造向导捏一只，两分钟就好，不填 API Key 也能用。' : '说的话会按你设定的性格回应，重要的事会慢慢记进它的小本本。' }}</p>
     </div>
 
-    <div class="card chat-card">
+    <div class="card chat-card" :class="{ 'chat-card--empty': needPet }">
+      <div v-if="needPet" class="chat-empty" style="padding:34px 20px">
+        <img :src="guideAvatar" alt="" class="chat-empty__pet" />
+        <p class="muted" style="margin:10px 0 16px">先捏一只属于你的宠物，再来聊天吧~</p>
+        <button class="primary" @click="goWizard">去创造向导</button>
+      </div>
+
+      <template v-else>
       <div class="chat-head">
         <div class="chat-head__who">
           <span class="avatar"><img :src="guideAvatar" alt="" /></span>
@@ -101,6 +113,7 @@ const send = async () => {
           <AppIcon v-if="!busy" name="send" :size="17" /> <span v-if="!busy">发送</span><span v-else>…</span>
         </button>
       </div>
+      </template>
     </div>
   </div>
 </template>

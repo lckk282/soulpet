@@ -18,6 +18,8 @@ const uploading = ref(false)
 const backend = ref('')
 const plaintext = ref(false)
 
+const isOffline = computed(() => (model.value.provider || '') === 'mock')
+
 // 没有钥匙串又没有主密码时，文件后端只能存明文 —— 不能骗用户说「已加密」
 const backendLabel = computed(() => {
   if (backend.value === 'keyring') return '系统钥匙串'
@@ -114,11 +116,21 @@ const backup = async () => {
 
     <div class="card">
       <h2 style="display:flex;align-items:center;gap:8px"><AppIcon name="bolt" :size="18" style="color:var(--brand)" /> 大模型</h2>
+
+      <!-- mock 是内部代号，别直接把 "mock / mock / http://127.0.0.1:1/v1" 甩给用户 -->
+      <div v-if="isOffline" class="banner info" style="margin-bottom:12px;align-items:flex-start">
+        <AppIcon name="sparkle" :size="15" style="vertical-align:-3px" />
+        <div>
+          当前是<strong>离线体验模式</strong>：用内置模拟回复，不联网、不花钱。
+          想换成真模型，把下面几项改成厂商信息、填上 API Key，点「保存」即可。
+        </div>
+      </div>
+
       <div class="row">
         <label class="field grow"><span>服务商</span><input v-model="model.provider" type="text" /></label>
         <label class="field grow"><span>模型名</span><input v-model="model.model" type="text" /></label>
       </div>
-      <label class="field"><span>API 地址</span><input v-model="model.base_url" type="text" /></label>
+      <label class="field"><span>API 地址{{ isOffline ? '（离线模式占位，可忽略）' : '' }}</span><input v-model="model.base_url" type="text" /></label>
       <label class="field">
         <span>API Key（当前{{ model.has_api_key ? '已保存' : '未设置' }} · 存放：{{ backendLabel }}）</span>
         <input v-model="model.api_key" type="password" placeholder="留空表示不修改" autocomplete="off" />
@@ -169,10 +181,14 @@ const backup = async () => {
       <h2 style="display:flex;align-items:center;gap:8px"><AppIcon name="shield" :size="18" style="color:var(--ok)" /> 备份与重置</h2>
       <div class="row wrap" style="gap:8px">
         <button @click="backup"><AppIcon name="refresh" :size="14" style="vertical-align:-2px" /> 立即备份</button>
+        <button class="ghost" @click="$router.push('/?edit=1')">
+          <AppIcon name="sparkle" :size="14" style="vertical-align:-2px" /> 重新运行创造向导
+        </button>
         <button class="danger" @click="reset">恢复出厂（清空配置、记忆与密钥）</button>
       </div>
       <p class="small muted" style="margin-top:8px">
         备份包含 config/、数据库与记忆，保存在 data/backups/。恢复出厂前会自动先备份一份。
+        「重新运行向导」只覆盖宠物配置，聊天记录和记忆都保留。
       </p>
     </div>
   </div>

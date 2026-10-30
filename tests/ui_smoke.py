@@ -191,6 +191,16 @@ def _walk(page, base: str, c: Checker, shot) -> None:
     page.wait_for_timeout(300)
 
     # 负向：没勾选就点下一步，必须被拦住
+    print("\n[1c] 未捏宠时聊天页不该给输入框")
+    page.set_viewport_size({"width": 1280, "height": 900})
+    page.goto(base + "/chat", wait_until="networkidle")
+    page.wait_for_timeout(500)
+    c.ok("提示还没有宠物", "还没有宠物" in page.inner_text("body"))
+    c.ok("有「去创造向导」按钮", page.locator("button:has-text('去创造向导')").count() == 1)
+    c.ok("不显示聊天输入框", page.locator(".chat-send textarea").count() == 0)
+    page.goto(base, wait_until="networkidle")
+    page.wait_for_timeout(400)
+
     print("\n[2] 负向：未勾选知情确认")
     page.locator(".wizard__actions button.primary").click()
     page.wait_for_timeout(700)
@@ -232,17 +242,32 @@ def _walk(page, base: str, c: Checker, shot) -> None:
     print("\n[6] 模型与额度（离线体验）")
     page.locator(".wizard__actions button.primary").click()
     page.wait_for_timeout(500)
-    c.ok("有「离线体验」入口", page.locator("text=离线体验").count() >= 1)
+    offline_btn = page.locator("button:has-text('离线体验')")
+    c.ok("有「离线体验」按钮", offline_btn.count() == 1, f"count={offline_btn.count()}")
     c.ok(
         "台词切换成额度相关",
         "额度" in page.locator(".guide__text").inner_text() or "上限" in page.locator(".guide__text").inner_text(),
     )
-    page.locator("text=离线体验").first.click()
+    # 空 Key 直接下一步只该报一条错，且不该去校验用户没碰过的 API 地址
+    page.locator(".wizard__actions button.primary").click()
+    page.wait_for_timeout(400)
+    err_text = page.locator(".inline-error").inner_text() if page.locator(".inline-error").count() else ""
+    c.ok("空 Key 拦截只报一条", len([x for x in err_text.splitlines() if x.strip()]) == 1, f"errors={err_text!r}")
+    c.ok("空 Key 提示指向离线体验", "离线体验" in err_text, f"errors={err_text!r}")
+    offline_btn.first.click()
     page.wait_for_timeout(400)
     c.ok("离线模式下模型名已填好", bool(page.locator("input[placeholder='以厂商后台显示为准']").input_value()))
     c.ok(
         "离线模式下 API 地址合法", page.locator("input[placeholder='https://.../v1']").input_value().startswith("http")
     )
+    c.ok("离线模式选中态有回显", "已选" in offline_btn.first.inner_text(), offline_btn.first.inner_text())
+    # 先试离线、再换成真服务商：模型名不能还残留 mock
+    page.locator(".chip:has-text('智谱')").first.click()
+    page.wait_for_timeout(300)
+    mname = page.locator("input[placeholder='以厂商后台显示为准']").input_value()
+    c.ok("切到真服务商后模型名不是 mock", mname and mname != "mock", f"model={mname!r}")
+    offline_btn.first.click()
+    page.wait_for_timeout(300)
     shot("06-model")
 
     print("\n[7] 功能模块")
@@ -274,6 +299,23 @@ def _walk(page, base: str, c: Checker, shot) -> None:
     reply = page.locator(".msg--assistant .bubble").last.inner_text()
     c.ok("收到宠物回复", len(reply.strip()) > 0, f"回复={reply[:40]!r}")
     shot("10-reply")
+
+    print("\n[10b] 二次打开首页直接回聊天页")
+    page.goto(base, wait_until="networkidle")
+    page.wait_for_timeout(900)
+    c.ok("落地 /chat 而不是空白向导", "/chat" in page.url, page.url)
+    c.ok("聊天记录还在", "你好呀" in page.inner_text("body"))
+
+    print("\n[10c] 设置页可重新进入向导")
+    page.goto(base + "/settings", wait_until="networkidle")
+    page.wait_for_timeout(500)
+    redo = page.locator("button:has-text('重新运行创造向导')")
+    c.ok("有重新运行向导入口", redo.count() == 1, f"count={redo.count()}")
+    redo.first.click()
+    page.wait_for_timeout(1500)
+    c.ok("URL 带上 edit=1", "edit=1" in page.url, page.url)
+    c.ok("重进向导不再被踢回聊天", "创造向导" in page.inner_text("body"), page.url)
+    c.ok("提示会覆盖现有配置", "覆盖" in page.inner_text("body"))
 
     print("\n[11] 记忆 / 状态 / 设置页可打开")
     for path, marker in (("/memory", "记忆"), ("/status", "状态"), ("/settings", "设置")):
